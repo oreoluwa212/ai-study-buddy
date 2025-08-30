@@ -23,8 +23,13 @@ class FlashcardGenerator:
         if not self.api_token:
             logger.warning("HUGGING_FACE_TOKEN not found - using fallback generation")
         
-        # Use a better model for question generation
-        self.api_url = "https://api-inference.huggingface.co/models/google/flan-t5-large"
+        # Use multiple models for better reliability
+        self.models = [
+            "google/flan-t5-base",  # Faster, more reliable
+            "google/flan-t5-small", # Even faster fallback
+            "microsoft/DialoGPT-medium"  # Alternative approach
+        ]
+        
         self.headers = {
             "Authorization": f"Bearer {self.api_token}",
             "Content-Type": "application/json"
@@ -39,6 +44,186 @@ class FlashcardGenerator:
             if len(s) > 15 and not s.isspace():
                 cleaned.append(s)
         return cleaned
+
+    def _test_hf_api_connection(self):
+        """Test if Hugging Face API is accessible"""
+        if not self.api_token:
+            return False, "No API token"
+            
+        try:
+            # Test with whoami endpoint first
+            response = requests.get(
+                "https://huggingface.co/api/whoami-v2",
+                headers={"Authorization": f"Bearer {self.api_token}"},
+                timeout=10
+            )
+            
+            if response.status_code == 200:
+                return True, "API accessible"
+            elif response.status_code == 401:
+                return False, "Invalid token"
+            else:
+                return False, f"API error: {response.status_code}"
+                
+        except Exception as e:
+            return False, f"Connection error: {str(e)}"
+
+    def _try_huggingface_generation(self, content: str, num_cards: int = 3) -> List[Dict[str, str]]:
+        """Try to generate questions using Hugging Face API with improved error handling"""
+        if not self.api_token:
+            logger.info("No Hugging Face token available")
+            return []
+        
+        # Test API connection first
+        is_accessible, message = self._test_hf_api_connection()
+        if not is_accessible:
+            logger.warning(f"HF API not accessible: {message}")
+            return []
+            
+        logger.info("Attempting AI generation with Hugging Face...")
+        
+        # Try multiple models
+        for model_name in self.models:
+            try:
+                api_url = f"https://api-inference.huggingface.co/models/{model_name}"
+                generated_cards = self._generate_with_model(api_url, content, model_name, num_cards)
+                
+                if generated_cards:
+                    logger.info(f"Successfully generated {len(generated_cards)} cards with {model_name}")
+                    return generated_cards
+                    
+            except Exception as e:
+                logger.warning(f"Model {model_name} failed: {str(e)}")
+                continue
+        
+        logger.info("All AI models failed, using fallback generation")
+        return []
+
+    def _generate_with_model(self, api_url: str, content: str, model_name: str, num_cards: int) -> List[Dict[str, str]]:
+        """Generate cards with a specific model"""
+        generated_cards = []
+        
+        # Create better prompts for question generation
+        if "flan-t5" in model_name:
+            prompts = [
+                f"Question: What is the main concept explained in this text?\nContext: {content[:300]}",
+                f"Question: Create a study question about this process.\nContext: {content[:300]}",
+                f"Question: What would a teacher ask about this topic?\nContext: {content[:300]}"
+            ]
+        else:
+            prompts = [
+                f"Generate a study question based on: {content[:200]}",
+                f"What question tests understanding of: {content[:200]}",
+                f"Create a quiz question for: {content[:200]}"
+            ]
+        
+        for i, prompt in enumerate(prompts[:num_cards]):
+            try:
+                payload = {
+                    "inputs": prompt,
+                    "parameters": {
+                        "max_new_tokens": 50,
+                        "temperature": 0.7,
+                        "do_sample": True,
+                        "return_full_text": False,
+                        "repetition_penalty": 1.1
+                    },
+                    "options": {
+                        "wait_for_model": True,
+                        "use_cache": False
+                    }
+                }
+                
+                # Retry logic with exponential backoff
+                for attempt in range(3):
+                    try:
+                        response = requests.post(
+                            api_url,
+                            headers=self.headers,
+                            json=payload,
+                            timeout=60  # Increased timeout for model loading
+                        )
+                        
+                        if response.status_code == 200:
+                            result = response.json()
+                            question = self._extract_question_from_response(result, content)
+                            
+                            if question:
+                                answer = self._generate_focused_answer(question, content)
+                                generated_cards.append({
+                                    "id": str(len(generated_cards) + 1),
+                                    "question": question,
+                                    "answer": answer,
+                                    "difficulty": self._assess_difficulty(question, answer),
+                                    "type": "ai_generated",
+                                    "model": model_name
+                                })
+                                break
+                                
+                        elif response.status_code == 429:
+                            wait_time = 2 ** attempt
+                            logger.info(f"Rate limited, waiting {wait_time} seconds...")
+                            time.sleep(wait_time)
+                        elif response.status_code == 503:
+                            wait_time = 10 + (attempt * 5)
+                            logger.info(f"Model loading, waiting {wait_time} seconds...")
+                            time.sleep(wait_time)
+                        else:
+                            logger.warning(f"API error {response.status_code}: {response.text}")
+                            break
+                            
+                    except requests.exceptions.Timeout:
+                        logger.warning(f"Timeout on attempt {attempt + 1}")
+                        if attempt < 2:
+                            time.sleep(2 ** attempt)
+                        else:
+                            break
+                    except Exception as e:
+                        logger.warning(f"Request failed on attempt {attempt + 1}: {str(e)}")
+                        break
+                
+                # Small delay between questions
+                time.sleep(1)
+                
+            except Exception as e:
+                logger.warning(f"Failed to generate question {i+1}: {str(e)}")
+                continue
+        
+        return generated_cards
+
+    def _extract_question_from_response(self, result: Any, content: str) -> str:
+        """Extract a valid question from API response"""
+        try:
+            if isinstance(result, list) and len(result) > 0:
+                generated_text = result[0].get('generated_text', '').strip()
+            elif isinstance(result, dict):
+                generated_text = result.get('generated_text', '').strip()
+            else:
+                return ''
+            
+            if not generated_text:
+                return ''
+            
+            # Clean up the generated text
+            generated_text = generated_text.replace(content[:50], '').strip()
+            
+            # Look for question patterns
+            if '?' in generated_text:
+                question = generated_text.split('?')[0] + '?'
+                question = question.strip()
+                
+                # Validate question quality
+                if (len(question) > 10 and 
+                    len(question) < 200 and 
+                    not question.lower().startswith('context:') and
+                    any(word in question.lower() for word in ['what', 'how', 'why', 'where', 'when', 'which', 'who'])):
+                    return question
+            
+            return ''
+            
+        except Exception as e:
+            logger.warning(f"Error extracting question: {str(e)}")
+            return ''
 
     def _extract_key_facts(self, text: str) -> List[Dict[str, str]]:
         """Extract key facts that can be turned into Q&A pairs"""
@@ -79,35 +264,6 @@ class FlashcardGenerator:
                     'question': f"How many main stages are involved in this process?",
                     'answer': f"It involves {num_stages}: {stages}"
                 })
-        
-        # Look for location information
-        location_patterns = [
-            r'occurs? (?:primarily )?in (?:the )?([^.!?,]+)',
-            r'takes? place in (?:the )?([^.!?,]+)',
-            r'happens? in (?:the )?([^.!?,]+)'
-        ]
-        
-        for pattern in location_patterns:
-            matches = re.finditer(pattern, text, re.IGNORECASE)
-            for match in matches:
-                location = match.group(1).strip()
-                if len(location) < 50 and not any(word in location.lower() for word in ['when', 'where', 'how', 'what', 'why']):
-                    facts.append({
-                        'type': 'location',
-                        'question': f"Where does this process occur?",
-                        'answer': f"It occurs in {location}"
-                    })
-        
-        # Look for equations or formulas
-        equation_pattern = r'equation is:?\s*([^.!?]+[.!?])'
-        matches = re.finditer(equation_pattern, text, re.IGNORECASE)
-        for match in matches:
-            equation = match.group(1).strip()
-            facts.append({
-                'type': 'equation',
-                'question': "What is the overall equation for this process?",
-                'answer': f"The equation is: {equation}"
-            })
         
         return facts
 
@@ -200,74 +356,6 @@ class FlashcardGenerator:
         
         return content[:150] + "..." if len(content) > 150 else content
 
-    def _try_huggingface_generation(self, content: str) -> List[Dict[str, str]]:
-        """Try to generate questions using Hugging Face API with better prompting"""
-        if not self.api_token:
-            return []
-            
-        try:
-            # Create structured prompts for better Q&A generation
-            prompts = [
-                f"Generate a question about the main concept in this text: {content[:200]}",
-                f"What question would test understanding of this process: {content[:200]}",
-                f"Create a question about the key facts in: {content[:200]}"
-            ]
-            
-            generated_cards = []
-            
-            for i, prompt in enumerate(prompts):
-                try:
-                    payload = {
-                        "inputs": prompt,
-                        "parameters": {
-                            "max_length": 100,
-                            "temperature": 0.7,
-                            "do_sample": True,
-                            "return_full_text": False
-                        }
-                    }
-                    
-                    response = requests.post(
-                        self.api_url, 
-                        headers=self.headers, 
-                        json=payload, 
-                        timeout=15
-                    )
-                    
-                    if response.status_code == 200:
-                        result = response.json()
-                        if isinstance(result, list) and len(result) > 0:
-                            generated_text = result[0].get('generated_text', '').strip()
-                            
-                            if generated_text and '?' in generated_text:
-                                # Extract question
-                                question = generated_text.split('?')[0] + '?'
-                                
-                                # Generate a focused answer from the content
-                                answer = self._generate_focused_answer(question, content)
-                                
-                                generated_cards.append({
-                                    "id": str(i + 1),
-                                    "question": question.strip(),
-                                    "answer": answer,
-                                    "difficulty": "medium",
-                                    "type": "ai_generated"
-                                })
-                    
-                    # Add delay between requests
-                    if i < len(prompts) - 1:
-                        time.sleep(1)
-                        
-                except Exception as e:
-                    logger.warning(f"Failed to generate question {i+1}: {e}")
-                    continue
-            
-            return generated_cards[:2]  # Return max 2 AI-generated cards
-                
-        except Exception as e:
-            logger.error(f"HF API error: {e}")
-            return []
-
     def _generate_focused_answer(self, question: str, content: str) -> str:
         """Generate a focused answer based on the question and content"""
         question_lower = question.lower()
@@ -332,8 +420,7 @@ class FlashcardGenerator:
         
         # Try AI generation first for 1-2 questions
         if self.api_token:
-            logger.info("Attempting AI generation...")
-            ai_questions = self._try_huggingface_generation(self.text)
+            ai_questions = self._try_huggingface_generation(self.text, min(2, num_cards))
             if ai_questions:
                 logger.info(f"AI generated {len(ai_questions)} questions")
                 all_questions.extend(ai_questions)
