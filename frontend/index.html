@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>AI Study Buddy - Flashcard Generator</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div class="container">
+      <!-- Header -->
+      <header class="header">
+        <h1>🧠 AI Study Buddy</h1>
+        <p>Transform your notes into interactive flashcards using AI</p>
+      </header>
+
+      <!-- Stats -->
+      <div class="stats">
+        <div class="stat-item">
+          <span class="stat-number" id="cardsGenerated">0</span>
+          <span class="stat-label">Cards Generated</span>
+        </div>
+        <div class="stat-item">
+          <span class="stat-number" id="studySessions">1</span>
+          <span class="stat-label">Study Sessions</span>
+        </div>
+        <div class="stat-item">
+          <span class="stat-number" id="savedSets">0</span>
+          <span class="stat-label">Saved Sets</span>
+        </div>
+      </div>
+
+      <!-- Sidebar for saved cards -->
+      <div class="sidebar" id="sidebar">
+        <div class="sidebar-header">
+          <h3>📚 Saved Card Sets</h3>
+          <button class="close-sidebar" onclick="toggleSidebar()">×</button>
+        </div>
+        <div class="sidebar-content" id="sidebarContent">
+          <div class="loading-saved" id="loadingSaved">
+            Loading saved sets...
+          </div>
+        </div>
+      </div>
+
+      <!-- Sidebar toggle button -->
+      <button
+        class="sidebar-toggle"
+        id="sidebarToggle"
+        onclick="toggleSidebar()"
+      >
+        📚 Saved Sets
+      </button>
+
+      <!-- Main Workspace -->
+      <div class="workspace">
+        <!-- Input Panel -->
+        <div class="panel">
+          <h2>📝 Your Study Notes</h2>
+
+          <div class="textarea-container">
+            <textarea
+              id="studyNotes"
+              class="study-textarea"
+              placeholder="Paste your study material here...
+
+Example:
+Machine learning is a subset of artificial intelligence that enables computers to learn and make decisions from data without being explicitly programmed. It uses algorithms to identify patterns in data and make predictions or decisions based on these patterns."
+            ></textarea>
+            <div class="word-count"><span id="wordCount">0</span> words</div>
+          </div>
+
+          <div class="buttons">
+            <button
+              class="btn btn-primary"
+              id="generateBtn"
+              onclick="generateFlashcards()"
+            >
+              🚀 Generate Flashcards
+            </button>
+            <button
+              class="btn btn-secondary"
+              id="saveBtn"
+              onclick="saveFlashcards()"
+              disabled
+            >
+              💾 Save Cards
+            </button>
+          </div>
+
+          <div class="loading" id="loading">
+            <div>🤖 AI is analyzing your notes...</div>
+            <div style="margin-top: 10px">This may take a few moments</div>
+          </div>
+
+          <div id="messageArea"></div>
+        </div>
+
+        <!-- Flashcards Panel -->
+        <div class="panel">
+          <h2>🎴 Study Flashcards</h2>
+
+          <div class="flashcards-container" id="flashcardsContainer">
+            <div class="empty-state">
+              <span class="icon">📚</span>
+              <h3>Ready to Learn?</h3>
+              <p>Your AI-generated flashcards will appear here</p>
+            </div>
+          </div>
+
+          <div class="controls" id="controls" style="display: none">
+            <button class="control-btn" id="prevBtn" onclick="previousCard()">
+              ←
+            </button>
+
+            <div class="card-counter">
+              <span id="currentCard">1</span> / <span id="totalCards">0</span>
+            </div>
+
+            <button class="control-btn" id="nextBtn" onclick="nextCard()">
+              →
+            </button>
+          </div>
+
+          <div class="card-actions" id="cardActions" style="display: none">
+            <button class="action-btn know-btn" onclick="markCard('know')">
+              ✓ I Know This
+            </button>
+            <button class="action-btn study-btn" onclick="markCard('study')">
+              📖 Study More
+            </button>
+            <button class="action-btn shuffle-btn" onclick="shuffleCards()">
+              🔀 Shuffle
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Instructions -->
+      <div class="instructions">
+        <h3>How to Use:</h3>
+        <ol>
+          <li>Paste your study notes in the text area</li>
+          <li>Click "Generate Flashcards" to create AI-powered questions</li>
+          <li>Use arrow keys or buttons to navigate</li>
+          <li>Click cards to flip between question and answer</li>
+          <li>Save your card sets and access them anytime from the sidebar</li>
+        </ol>
+      </div>
+    </div>
+
+    <script src="script.js"></script>
+  </body>
+</html>
