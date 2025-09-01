@@ -30,12 +30,16 @@ USE_SUPABASE = bool(os.getenv("SUPABASE_URL") and os.getenv("SUPABASE_KEY"))
 
 if USE_SUPABASE:
     try:
-        from supabase import create_client, Client
+        from supabase.client import create_client, Client
 
         supabase_url = os.getenv("SUPABASE_URL")
         supabase_key = os.getenv("SUPABASE_KEY")
-        supabase: Client = create_client(supabase_url, supabase_key)
-        logger.info("✅ Supabase client initialized")
+        if supabase_url and supabase_key:  # ensures they’re not None
+            supabase: Client = create_client(supabase_url, supabase_key)
+            logger.info("✅ Supabase client initialized")
+        else:
+            logger.warning("⚠️ SUPABASE_URL or SUPABASE_KEY not set. Using in-memory storage.")
+            supabase = None
     except ImportError:
         logger.warning("⚠️  Supabase library not installed. Using in-memory storage.")
         logger.warning("   Install with: pip install supabase")
