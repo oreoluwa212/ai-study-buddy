@@ -1,7 +1,7 @@
 # backend/app.py
 from flask import Flask, request, jsonify, send_from_directory
 from flask_cors import CORS
-from models.flashcard import FlashcardGenerator
+from backend.models.flashcard import FlashcardGenerator
 import logging
 import os
 from datetime import datetime
