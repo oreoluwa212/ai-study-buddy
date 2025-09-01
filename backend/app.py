@@ -11,8 +11,16 @@ import json
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-app = Flask(__name__)
-CORS(app)
+# Updated Flask app initialization to serve frontend
+app = Flask(__name__, static_folder="../frontend", static_url_path="")
+
+# Configure CORS - more restrictive for production
+if os.environ.get("FLASK_ENV") == "development":
+    CORS(app)
+else:
+    # In production, we serve everything from same domain, so CORS not needed
+    # But if you need it, configure it properly
+    CORS(app, origins=["https://yourdomain.com"])
 
 # Storage configuration - choose between Supabase and in-memory
 USE_SUPABASE = bool(os.getenv("SUPABASE_URL") and os.getenv("SUPABASE_KEY"))
@@ -139,16 +147,18 @@ class FlashcardStorage:
                     .order("created_at", desc=True)
                     .execute()
                 )
-                
+
                 if result.data:
                     logger.info(f"Retrieved {len(result.data)} full sets from Supabase")
-                    
+
                     # Add preview logic if requested
                     if preview_count > 0:
                         for set_data in result.data:
-                            if set_data.get('flashcards'):
-                                set_data['flashcard_preview'] = set_data['flashcards'][:preview_count]
-                    
+                            if set_data.get("flashcards"):
+                                set_data["flashcard_preview"] = set_data["flashcards"][
+                                    :preview_count
+                                ]
+
                     return result.data
                 return []
             except Exception as e:
@@ -163,14 +173,16 @@ class FlashcardStorage:
         sets_list = []
         for set_id, flashcard_set in flashcard_storage.items():
             set_copy = flashcard_set.copy()
-            
+
             # Add preview if requested
-            if preview_count > 0 and set_copy.get('flashcards'):
-                set_copy['flashcard_preview'] = set_copy['flashcards'][:preview_count]
-            
+            if preview_count > 0 and set_copy.get("flashcards"):
+                set_copy["flashcard_preview"] = set_copy["flashcards"][:preview_count]
+
             sets_list.append(set_copy)
-            logger.info(f"Memory set with cards: {set_copy['title']} - {len(set_copy.get('flashcards', []))} cards")
-        
+            logger.info(
+                f"Memory set with cards: {set_copy['title']} - {len(set_copy.get('flashcards', []))} cards"
+            )
+
         return sorted(sets_list, key=lambda x: x["created_at"], reverse=True)
 
     @staticmethod
@@ -243,7 +255,25 @@ class FlashcardStorage:
             )
 
 
+# Frontend serving routes (NEW)
 @app.route("/")
+def index():
+    """Serve the main frontend page"""
+    return send_from_directory(app.static_folder, "index.html")
+
+
+@app.route("/<path:filename>")
+def static_files(filename):
+    """Serve static files (CSS, JS, images)"""
+    try:
+        return send_from_directory(app.static_folder, filename)
+    except FileNotFoundError:
+        # If file not found, serve index.html (for SPA routing)
+        return send_from_directory(app.static_folder, "index.html")
+
+
+# API Routes (existing - no changes needed)
+@app.route("/api/status")
 def home():
     storage_type = "Supabase" if USE_SUPABASE else "In-Memory"
     return jsonify(
@@ -251,7 +281,7 @@ def home():
             "message": "AI Study Buddy Backend is running!",
             "version": "1.0.0",
             "storage": storage_type,
-            "ai_enabled": bool(os.getenv("HUGGING_FACE_TOKEN")),
+            "ai_enabled": bool(os.getenv("GEMINI_API_KEY")),
             "endpoints": {
                 "generate": "/api/generate-flashcards",
                 "save": "/api/flashcards",
@@ -441,7 +471,7 @@ def health_check():
             "status": "healthy",
             "timestamp": datetime.now().isoformat(),
             "storage": "Supabase" if USE_SUPABASE else "Memory",
-            "ai_enabled": bool(os.getenv("HUGGING_FACE_TOKEN")),
+            "ai_enabled": bool(os.getenv("GEMINI_API_KEY")),
         }
     )
 
@@ -473,11 +503,11 @@ if __name__ == "__main__":
     print("AI Study Buddy Backend - System Status")
     print("=" * 40)
 
-    # Check Hugging Face token
-    if os.getenv("HUGGING_FACE_TOKEN"):
-        print("✅ Hugging Face token: Found")
+    # Check Gemini API key
+    if os.getenv("GEMINI_API_KEY"):
+        print("✅ Gemini API key: Found")
     else:
-        print("⚠️  Hugging Face token: Not found - AI features will be limited")
+        print("⚠️  Gemini API key: Not found - AI features will be limited")
 
     # Check storage
     if USE_SUPABASE:
@@ -489,4 +519,8 @@ if __name__ == "__main__":
     print("📍 Backend running on: http://localhost:5000")
     print("📚 API health check: http://localhost:5000/api/health")
 
-    app.run(debug=True, host="0.0.0.0", port=5000, use_reloader=True)
+    # Updated for deployment
+    port = int(os.environ.get("PORT", 5000))
+    debug_mode = os.environ.get("FLASK_ENV") == "development"
+
+    app.run(debug=debug_mode, host="0.0.0.0", port=port, use_reloader=debug_mode)
