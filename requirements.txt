@@ -1,42 +1,13 @@
-# Flask web framework
 Flask==2.3.3
 Flask-CORS==4.0.0
-
-# Production WSGI server
 gunicorn==21.2.0
-
-# HTTP requests for API calls
 requests==2.31.0
-
-# Environment variable management
 python-dotenv==1.0.0
-
-# Date and time utilities
 python-dateutil==2.8.2
-
-# JSON handling (usually built-in, but explicit for clarity)
-# json is built-in to Python
-
-# Optional: For enhanced text processing
-# spacy==3.6.1
-# nltk==3.8.1
-
-# Database support
 supabase==2.3.4
-
-# Optional: For local database support (uncomment if needed)
-# SQLAlchemy==2.0.21
-# Flask-SQLAlchemy==3.0.5
-
-# Optional: For better logging
 colorlog==6.7.0
-
-# Development dependencies (these won't be installed in production)
 pytest==7.4.2
 pytest-flask==1.2.0
-
-# Production dependencies
-# Pinned versions for stability
 Werkzeug==2.3.7
 Jinja2==3.1.2
 MarkupSafe==2.1.3

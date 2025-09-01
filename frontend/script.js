@@ -11,15 +11,23 @@ const AppState = {
 };
 
 // API Configuration - Backend endpoints
+const API_BASE_URL =
+    window.location.hostname === 'localhost' ||
+        window.location.hostname === '127.0.0.1'
+        ? 'http://127.0.0.1:5000'
+        : 'https://studypal-fikn.onrender.com';
+
 const API_CONFIG = {
-    baseUrl: 'http://127.0.0.1:5000', // Flask backend URL
+    baseUrl: API_BASE_URL,
     endpoints: {
-        generateFlashcards: 'http://127.0.0.1:5000/api/generate-flashcards',
-        saveFlashcards: 'http://127.0.0.1:5000/api/flashcards',
-        getFlashcards: 'http://127.0.0.1:5000/api/flashcards',
-        deleteFlashcards: 'http://127.0.0.1:5000/api/flashcards'
+        generateFlashcards: `${API_BASE_URL}/api/generate-flashcards`,
+        saveFlashcards: `${API_BASE_URL}/api/flashcards`,
+        getFlashcards: `${API_BASE_URL}/api/flashcards`,
+        deleteFlashcards: `${API_BASE_URL}/api/flashcards`
     }
 };
+
+
 
 // DOM Elements Cache
 const DOMElements = {

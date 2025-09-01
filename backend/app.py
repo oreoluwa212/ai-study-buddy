@@ -1,7 +1,7 @@
 # backend/app.py
 from flask import Flask, request, jsonify, send_from_directory
 from flask_cors import CORS
-from backend.models.flashcard import FlashcardGenerator
+from models.flashcard import FlashcardGenerator
 import logging
 import os
 from datetime import datetime
@@ -20,7 +20,7 @@ if os.environ.get("FLASK_ENV") == "development":
 else:
     # In production, we serve everything from same domain, so CORS not needed
     # But if you need it, configure it properly
-    CORS(app, origins=["https://yourdomain.com"])
+    CORS(app, origins=["https://studypal-fikn.onrender.com"])
 
 # Storage configuration - choose between Supabase and in-memory
 USE_SUPABASE = bool(os.getenv("SUPABASE_URL") and os.getenv("SUPABASE_KEY"))
