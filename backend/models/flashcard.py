@@ -4,360 +4,576 @@ import os
 import re
 import json
 import time
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 import logging
 
 logger = logging.getLogger(__name__)
 
+
 class FlashcardGenerator:
     """
-    Generates flashcards from a given text input using multiple strategies.
+    Optimized flashcard generator using Google Gemini API and intelligent fallbacks
     """
 
     def __init__(self, text: str):
         self.text = text
         self.sentences = self._split_into_sentences()
-        
-        # Hugging Face API configuration
-        self.api_token = os.getenv('HUGGING_FACE_TOKEN')
-        if not self.api_token:
-            logger.warning("HUGGING_FACE_TOKEN not found - using fallback generation")
-        
-        # Use a better model for question generation
-        self.api_url = "https://api-inference.huggingface.co/models/google/flan-t5-large"
-        self.headers = {
-            "Authorization": f"Bearer {self.api_token}",
-            "Content-Type": "application/json"
-        }
+        self.paragraphs = self._split_into_paragraphs()
 
-    def _split_into_sentences(self):
-        """Split text into meaningful sentences"""
-        sentences = re.split(r'[.!?]+', self.text)
+        # Google Gemini API configuration
+        self.gemini_api_key = os.getenv("GEMINI_API_KEY")
+        if not self.gemini_api_key:
+            logger.warning(
+                "GEMINI_API_KEY not found - using pattern-based generation only"
+            )
+
+        # Gemini API URL
+        self.gemini_url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key={self.gemini_api_key}"
+
+        self.headers = {"Content-Type": "application/json"}
+
+    def _split_into_sentences(self) -> List[str]:
+        """Split text into clean, meaningful sentences"""
+        # Handle abbreviations properly
+        text = re.sub(
+            r"\b(?:Dr|Mr|Ms|Mrs|Prof|Inc|Ltd|etc|vs|e\.g|i\.e)\\.",
+            lambda m: m.group().replace(".", "●"),
+            self.text,
+        )
+
+        # Split on sentence boundaries
+        sentences = re.split(r"(?<=[.!?])\s+(?=[A-Z])", text)
+
         cleaned = []
-        for s in sentences:
-            s = s.strip()
-            if len(s) > 15 and not s.isspace():
-                cleaned.append(s)
+        for sentence in sentences:
+            sentence = sentence.replace("●", ".").strip()
+            # Only keep substantial sentences
+            if (
+                len(sentence) > 25
+                and not sentence.isspace()
+                and not re.match(r"^[A-Z]\.$", sentence)
+                and len(sentence.split()) >= 5
+            ):
+                sentence = re.sub(r"\s+", " ", sentence)
+                cleaned.append(sentence)
+
         return cleaned
 
-    def _extract_key_facts(self, text: str) -> List[Dict[str, str]]:
-        """Extract key facts that can be turned into Q&A pairs"""
-        facts = []
-        
-        # Look for definition patterns
-        definition_patterns = [
-            r'([A-Z][^.!?]*) is ((?:a|an|the) [^.!?]+[.!?])',
-            r'([A-Z][^.!?]*) refers to ([^.!?]+[.!?])',
-            r'([A-Z][^.!?]*) means ([^.!?]+[.!?])'
-        ]
-        
-        for pattern in definition_patterns:
-            matches = re.finditer(pattern, text)
-            for match in matches:
-                term = match.group(1).strip()
-                definition = match.group(2).strip()
-                facts.append({
-                    'type': 'definition',
-                    'question': f"What is {term}?",
-                    'answer': f"{term} is {definition}"
-                })
-        
-        # Look for process steps
-        process_patterns = [
-            r'involves? ((?:two|three|four|several) (?:main )?(?:stages?|steps?|phases?)): ([^.!?]+)',
-            r'consists? of ((?:two|three|four|several) (?:main )?(?:stages?|steps?|parts?)): ([^.!?]+)',
-            r'occurs? in ((?:two|three|four|several) (?:main )?(?:stages?|steps?|phases?)): ([^.!?]+)'
-        ]
-        
-        for pattern in process_patterns:
-            matches = re.finditer(pattern, text, re.IGNORECASE)
-            for match in matches:
-                num_stages = match.group(1)
-                stages = match.group(2).strip()
-                facts.append({
-                    'type': 'process',
-                    'question': f"How many main stages are involved in this process?",
-                    'answer': f"It involves {num_stages}: {stages}"
-                })
-        
-        # Look for location information
-        location_patterns = [
-            r'occurs? (?:primarily )?in (?:the )?([^.!?,]+)',
-            r'takes? place in (?:the )?([^.!?,]+)',
-            r'happens? in (?:the )?([^.!?,]+)'
-        ]
-        
-        for pattern in location_patterns:
-            matches = re.finditer(pattern, text, re.IGNORECASE)
-            for match in matches:
-                location = match.group(1).strip()
-                if len(location) < 50 and not any(word in location.lower() for word in ['when', 'where', 'how', 'what', 'why']):
-                    facts.append({
-                        'type': 'location',
-                        'question': f"Where does this process occur?",
-                        'answer': f"It occurs in {location}"
-                    })
-        
-        # Look for equations or formulas
-        equation_pattern = r'equation is:?\s*([^.!?]+[.!?])'
-        matches = re.finditer(equation_pattern, text, re.IGNORECASE)
-        for match in matches:
-            equation = match.group(1).strip()
-            facts.append({
-                'type': 'equation',
-                'question': "What is the overall equation for this process?",
-                'answer': f"The equation is: {equation}"
-            })
-        
-        return facts
+    def _split_into_paragraphs(self) -> List[str]:
+        """Split text into paragraphs for context"""
+        paragraphs = [p.strip() for p in self.text.split("\n\n") if p.strip()]
+        if not paragraphs:
+            paragraphs = [self.text]
+        return paragraphs
 
-    def _create_smart_fallback_questions(self, content: str, num_questions: int = 5) -> List[Dict[str, str]]:
-        """Create intelligent fallback questions using pattern matching"""
-        questions = []
-        
-        # First try to extract structured facts
-        extracted_facts = self._extract_key_facts(content)
-        questions.extend(extracted_facts)
-        
-        # Fill remaining slots with template-based questions
-        remaining = max(0, num_questions - len(questions))
-        if remaining > 0:
-            template_questions = self._generate_template_questions(content, remaining)
-            questions.extend(template_questions)
-        
-        # Ensure we have the right number of questions
-        questions = questions[:num_questions]
-        
-        # Add IDs and ensure all required fields
-        for i, q in enumerate(questions):
-            q['id'] = str(i + 1)
-            if 'difficulty' not in q:
-                q['difficulty'] = self._assess_difficulty(q['question'], q['answer'])
-            if 'type' not in q:
-                q['type'] = q.get('type', 'general')
-        
-        return questions
+    def _try_gemini_generation(
+        self, content: str, num_cards: int
+    ) -> List[Dict[str, str]]:
+        """Use Google Gemini API to generate flashcards"""
+        generated_cards = []
 
-    def _generate_template_questions(self, content: str, num_needed: int) -> List[Dict[str, str]]:
-        """Generate questions using templates when pattern matching fails"""
-        questions = []
-        sentences = self.sentences if self.sentences else [content]
-        
-        # Template categories with better answer extraction
-        templates = [
-            {
-                'question': "What is the main process described in the text?",
-                'answer_strategy': 'first_sentence'
-            },
-            {
-                'question': "What are the key components or stages mentioned?",
-                'answer_strategy': 'list_items'
-            },
-            {
-                'question': "What happens during this process?",
-                'answer_strategy': 'process_description'
-            },
-            {
-                'question': "What is produced or created by this process?",
-                'answer_strategy': 'products'
-            }
-        ]
-        
-        for i in range(min(num_needed, len(templates))):
-            template = templates[i]
-            answer = self._extract_answer_by_strategy(content, sentences, template['answer_strategy'])
-            
-            questions.append({
-                'question': template['question'],
-                'answer': answer,
-                'type': 'template'
-            })
-        
-        return questions
-
-    def _extract_answer_by_strategy(self, content: str, sentences: List[str], strategy: str) -> str:
-        """Extract answers using different strategies"""
-        if strategy == 'first_sentence' and sentences:
-            return sentences[0]
-        elif strategy == 'list_items':
-            # Look for lists or enumerations
-            lists = re.findall(r'(?:two|three|four|several|main) (?:stages?|steps?|types?|parts?): ([^.!?]+)', content, re.IGNORECASE)
-            if lists:
-                return f"The main components are: {lists[0]}"
-            return sentences[0] if sentences else content[:100] + "..."
-        elif strategy == 'process_description':
-            # Find sentences that describe what happens
-            for sentence in sentences:
-                if any(word in sentence.lower() for word in ['produces', 'creates', 'converts', 'involves', 'occurs']):
-                    return sentence
-            return sentences[1] if len(sentences) > 1 else sentences[0] if sentences else content[:100] + "..."
-        elif strategy == 'products':
-            # Look for what's produced or created
-            products = re.findall(r'(?:producing|creating|releasing|generating) ([^.!?,]+)', content, re.IGNORECASE)
-            if products:
-                return f"It produces {products[0]}"
-            return sentences[-1] if sentences else content[:100] + "..."
-        
-        return content[:150] + "..." if len(content) > 150 else content
-
-    def _try_huggingface_generation(self, content: str) -> List[Dict[str, str]]:
-        """Try to generate questions using Hugging Face API with better prompting"""
-        if not self.api_token:
+        if not self.gemini_api_key:
             return []
-            
+
         try:
-            # Create structured prompts for better Q&A generation
-            prompts = [
-                f"Generate a question about the main concept in this text: {content[:200]}",
-                f"What question would test understanding of this process: {content[:200]}",
-                f"Create a question about the key facts in: {content[:200]}"
-            ]
-            
-            generated_cards = []
-            
-            for i, prompt in enumerate(prompts):
-                try:
-                    payload = {
-                        "inputs": prompt,
-                        "parameters": {
-                            "max_length": 100,
-                            "temperature": 0.7,
-                            "do_sample": True,
-                            "return_full_text": False
-                        }
-                    }
-                    
-                    response = requests.post(
-                        self.api_url, 
-                        headers=self.headers, 
-                        json=payload, 
-                        timeout=15
-                    )
-                    
-                    if response.status_code == 200:
-                        result = response.json()
-                        if isinstance(result, list) and len(result) > 0:
-                            generated_text = result[0].get('generated_text', '').strip()
-                            
-                            if generated_text and '?' in generated_text:
-                                # Extract question
-                                question = generated_text.split('?')[0] + '?'
-                                
-                                # Generate a focused answer from the content
-                                answer = self._generate_focused_answer(question, content)
-                                
-                                generated_cards.append({
-                                    "id": str(i + 1),
-                                    "question": question.strip(),
-                                    "answer": answer,
-                                    "difficulty": "medium",
-                                    "type": "ai_generated"
-                                })
-                    
-                    # Add delay between requests
-                    if i < len(prompts) - 1:
-                        time.sleep(1)
-                        
-                except Exception as e:
-                    logger.warning(f"Failed to generate question {i+1}: {e}")
-                    continue
-            
-            return generated_cards[:2]  # Return max 2 AI-generated cards
-                
+            # Create a focused prompt for flashcard generation
+            prompt = f"""
+Based on the following study material, generate exactly {num_cards} high-quality flashcards for learning and review. 
+
+Study Material:
+{content[:1500]}  
+
+Requirements:
+1. Each flashcard should have a clear, specific question and a comprehensive answer
+2. Questions should test understanding, not just memorization
+3. Answers should be informative but concise (50-200 words)
+4. Cover the most important concepts from the material
+5. Use different question types: What, How, Why, When, Where
+
+Please respond ONLY with valid JSON in this exact format:
+{{
+    "flashcards": [
+        {{
+            "question": "Clear, specific question here?",
+            "answer": "Comprehensive answer that explains the concept clearly."
+        }}
+    ]
+}}
+"""
+
+            payload = {
+                "contents": [{"parts": [{"text": prompt}]}],
+                "generationConfig": {
+                    "temperature": 0.7,
+                    "topK": 40,
+                    "topP": 0.95,
+                    "maxOutputTokens": 2048,
+                    "stopSequences": [],
+                },
+                "safetySettings": [
+                    {
+                        "category": "HARM_CATEGORY_HARASSMENT",
+                        "threshold": "BLOCK_MEDIUM_AND_ABOVE",
+                    },
+                    {
+                        "category": "HARM_CATEGORY_HATE_SPEECH",
+                        "threshold": "BLOCK_MEDIUM_AND_ABOVE",
+                    },
+                    {
+                        "category": "HARM_CATEGORY_SEXUALLY_EXPLICIT",
+                        "threshold": "BLOCK_MEDIUM_AND_ABOVE",
+                    },
+                    {
+                        "category": "HARM_CATEGORY_DANGEROUS_CONTENT",
+                        "threshold": "BLOCK_MEDIUM_AND_ABOVE",
+                    },
+                ],
+            }
+
+            logger.info("Sending request to Gemini API...")
+            response = requests.post(
+                self.gemini_url, headers=self.headers, json=payload, timeout=30
+            )
+
+            if response.status_code == 200:
+                result = response.json()
+
+                if "candidates" in result and result["candidates"]:
+                    candidate = result["candidates"][0]
+                    if "content" in candidate and "parts" in candidate["content"]:
+                        generated_text = candidate["content"]["parts"][0]["text"]
+
+                        # Parse the JSON response
+                        flashcards_data = self._parse_gemini_response(generated_text)
+
+                        if flashcards_data:
+                            for i, card in enumerate(flashcards_data[:num_cards]):
+                                question = card.get("question", "").strip()
+                                answer = card.get("answer", "").strip()
+
+                                if self._is_quality_question(question, answer):
+                                    generated_cards.append(
+                                        {
+                                            "id": str(i + 1),
+                                            "question": question,
+                                            "answer": answer,
+                                            "difficulty": self._assess_difficulty(
+                                                question, answer
+                                            ),
+                                            "type": "gemini_generated",
+                                            "model": "gemini-1.5-flash",
+                                        }
+                                    )
+                                    logger.info(f"Gemini generated: {question[:50]}...")
+
+                        logger.info(
+                            f"✅ Gemini generated {len(generated_cards)} quality flashcards"
+                        )
+                else:
+                    logger.warning("No candidates in Gemini response")
+            else:
+                logger.error(
+                    f"Gemini API error: {response.status_code} - {response.text}"
+                )
+
+        except requests.exceptions.Timeout:
+            logger.error("Gemini API request timed out")
+        except requests.exceptions.RequestException as e:
+            logger.error(f"Gemini API request failed: {str(e)}")
         except Exception as e:
-            logger.error(f"HF API error: {e}")
+            logger.error(f"Gemini generation failed: {str(e)}")
+
+        return generated_cards
+
+    def _parse_gemini_response(self, response_text: str) -> List[Dict[str, str]]:
+        """Parse Gemini's JSON response and extract flashcards"""
+        try:
+            # Clean up the response text
+            response_text = response_text.strip()
+
+            # Find JSON content between ```json and ``` or just look for the JSON object
+            json_match = re.search(r"```json\s*(.*?)\s*```", response_text, re.DOTALL)
+            if json_match:
+                json_str = json_match.group(1)
+            else:
+                # Look for JSON object directly
+                json_match = re.search(
+                    r'\{.*"flashcards".*\}', response_text, re.DOTALL
+                )
+                if json_match:
+                    json_str = json_match.group(0)
+                else:
+                    json_str = response_text
+
+            # Parse JSON
+            parsed_data = json.loads(json_str)
+
+            if "flashcards" in parsed_data:
+                return parsed_data["flashcards"]
+            else:
+                logger.warning("No 'flashcards' key found in Gemini response")
+                return []
+
+        except json.JSONDecodeError as e:
+            logger.error(f"Failed to parse Gemini JSON response: {e}")
+            logger.error(f"Raw response: {response_text[:500]}...")
+            return []
+        except Exception as e:
+            logger.error(f"Error parsing Gemini response: {e}")
             return []
 
-    def _generate_focused_answer(self, question: str, content: str) -> str:
-        """Generate a focused answer based on the question and content"""
-        question_lower = question.lower()
+    def _create_pattern_based_questions(
+        self, content: str, num_questions: int
+    ) -> List[Dict[str, str]]:
+        """Create high-quality questions using advanced pattern matching"""
+        questions = []
+
+        # Advanced concept extraction patterns
+        concept_patterns = {
+            "definitions": [
+                (
+                    r"([A-Z][^.!?]{3,50}) (?:is|are) (?:a|an|the) ([^.!?]{20,})[.!?]",
+                    "What is {0}?",
+                    "{0} is {1}.",
+                ),
+                (
+                    r"([A-Z][^.!?]{5,50}) (?:refers to|means) ([^.!?]{15,})[.!?]",
+                    "What does {0} refer to?",
+                    "{0} refers to {1}.",
+                ),
+                (
+                    r"The term ([^.!?]{5,40}) (?:describes|denotes) ([^.!?]{15,})[.!?]",
+                    "What does the term {0} describe?",
+                    "The term {0} describes {1}.",
+                ),
+            ],
+            "processes": [
+                (
+                    r"([^.!?]{10,50}) (?:involves|consists of|includes) ([^.!?]{20,})[.!?]",
+                    "What does {0} involve?",
+                    "{0} involves {1}.",
+                ),
+                (
+                    r"The process of ([^.!?]{10,40}) (?:requires|needs|uses) ([^.!?]{15,})[.!?]",
+                    "What does the process of {0} require?",
+                    "The process of {0} requires {1}.",
+                ),
+            ],
+            "functions": [
+                (
+                    r"([^.!?]{10,50}) (?:serves to|functions to|helps to) ([^.!?]{15,})[.!?]",
+                    "What does {0} serve to do?",
+                    "{0} serves to {1}.",
+                ),
+                (
+                    r"The (?:purpose|function|role) of ([^.!?]{10,40}) is (?:to )?([^.!?]{15,})[.!?]",
+                    "What is the purpose of {0}?",
+                    "The purpose of {0} is {1}.",
+                ),
+            ],
+            "characteristics": [
+                (
+                    r"([^.!?]{10,50}) (?:is characterized by|features|exhibits) ([^.!?]{15,})[.!?]",
+                    "What characterizes {0}?",
+                    "{0} is characterized by {1}.",
+                ),
+                (
+                    r"([^.!?]{10,50}) (?:has|contains|possesses) ([^.!?]{15,})[.!?]",
+                    "What does {0} contain?",
+                    "{0} contains {1}.",
+                ),
+            ],
+        }
+
+        # Extract concepts using patterns
+        for category, patterns in concept_patterns.items():
+            for pattern, question_template, answer_template in patterns:
+                matches = re.finditer(pattern, content, re.IGNORECASE)
+                for match in matches:
+                    if len(questions) >= num_questions:
+                        break
+
+                    groups = [g.strip() for g in match.groups()]
+                    if all(len(g) > 3 for g in groups):
+                        question = question_template.format(*groups)
+                        answer = answer_template.format(*groups)
+
+                        questions.append(
+                            {
+                                "question": question,
+                                "answer": answer,
+                                "type": f"pattern_{category}",
+                                "category": category,
+                            }
+                        )
+
+        # Add general questions if we don't have enough
+        if len(questions) < num_questions:
+            general_questions = self._create_general_questions(
+                content, num_questions - len(questions)
+            )
+            questions.extend(general_questions)
+
+        # Add metadata and limit
+        final_questions = []
+        for i, q in enumerate(questions[:num_questions]):
+            q["id"] = str(i + 1)
+            q["difficulty"] = self._assess_difficulty(q["question"], q["answer"])
+            if "type" not in q:
+                q["type"] = "pattern_based"
+            final_questions.append(q)
+
+        return final_questions
+
+    def _create_general_questions(
+        self, content: str, num_needed: int
+    ) -> List[Dict[str, str]]:
+        """Create general questions when pattern matching doesn't find enough"""
+        questions = []
         sentences = self.sentences
-        
-        # Different strategies based on question type
-        if any(word in question_lower for word in ['what is', 'define', 'definition']):
-            # For definition questions, look for sentences that define something
-            for sentence in sentences:
-                if any(word in sentence.lower() for word in [' is ', ' are ', ' refers to', ' means']):
-                    return sentence
-        
-        elif any(word in question_lower for word in ['where', 'location']):
-            # For location questions
-            for sentence in sentences:
-                if any(word in sentence.lower() for word in ['occurs', 'takes place', 'happens', 'in the']):
-                    return sentence
-        
-        elif any(word in question_lower for word in ['how many', 'stages', 'steps']):
-            # For process questions
-            for sentence in sentences:
-                if any(word in sentence.lower() for word in ['stages', 'steps', 'involves', 'consists']):
-                    return sentence
-        
-        elif 'equation' in question_lower:
-            # For equation questions
-            for sentence in sentences:
-                if 'equation' in sentence.lower() or '→' in sentence or '+' in sentence:
-                    return sentence
-        
-        # Default: return most relevant sentence or first sentence
-        return sentences[0] if sentences else content[:150] + "..."
+
+        if not sentences:
+            return []
+
+        # Intelligent question templates based on content analysis
+        content_lower = content.lower()
+
+        templates = []
+
+        # Economics-specific templates
+        if any(
+            word in content_lower for word in ["economy", "economic", "market", "price"]
+        ):
+            templates.extend(
+                [
+                    ("What type of economic system is described?", sentences[0]),
+                    (
+                        "How do prices function in this system?",
+                        self._find_sentence_with_words(
+                            sentences, ["price", "signal", "guide"]
+                        ),
+                    ),
+                    (
+                        "What guides economic decisions?",
+                        self._find_sentence_with_words(
+                            sentences, ["decision", "guide", "determine"]
+                        ),
+                    ),
+                ]
+            )
+
+        # Science/process templates
+        if any(
+            word in content_lower
+            for word in ["process", "occurs", "involves", "produces"]
+        ):
+            templates.extend(
+                [
+                    ("What process is being described?", sentences[0]),
+                    (
+                        "How does this process work?",
+                        self._find_sentence_with_words(
+                            sentences, ["process", "involves", "occurs"]
+                        ),
+                    ),
+                    (
+                        "What are the results of this process?",
+                        self._find_sentence_with_words(
+                            sentences, ["result", "produce", "create"]
+                        ),
+                    ),
+                ]
+            )
+
+        # General templates
+        templates.extend(
+            [
+                ("What is the main concept discussed?", sentences[0]),
+                (
+                    "What are the key characteristics mentioned?",
+                    sentences[1] if len(sentences) > 1 else sentences[0],
+                ),
+                (
+                    "What examples are provided?",
+                    sentences[-1] if len(sentences) > 1 else sentences[0],
+                ),
+            ]
+        )
+
+        # Create questions from templates
+        for i, (question, answer) in enumerate(templates[:num_needed]):
+            if answer:  # Only add if we have a good answer
+                questions.append(
+                    {"question": question, "answer": answer, "type": "general_template"}
+                )
+
+        return questions
+
+    def _find_sentence_with_words(
+        self, sentences: List[str], keywords: List[str]
+    ) -> str:
+        """Find the best sentence containing specific keywords"""
+        for sentence in sentences:
+            sentence_lower = sentence.lower()
+            if any(keyword in sentence_lower for keyword in keywords):
+                return sentence
+        return sentences[0] if sentences else ""
 
     def _assess_difficulty(self, question: str, answer: str) -> str:
-        """Assess difficulty based on content complexity"""
-        factors = {
-            'question_words': len(question.split()),
-            'answer_words': len(answer.split()),
-            'complex_words': len([w for w in (question + ' ' + answer).split() if len(w) > 7]),
-            'technical_terms': len(re.findall(r'\b[A-Z]{2,}\b|\b\w+tion\b|\b\w+ism\b|\b\w+ology\b', answer))
+        """Smart difficulty assessment"""
+        text = question + " " + answer
+
+        complexity_indicators = {
+            "word_count": len(text.split()),
+            "long_words": len([w for w in text.split() if len(w) > 7]),
+            "technical_terms": len(
+                re.findall(
+                    r"\b\w*(?:tion|ism|ology|ment|ity|ness)\b", text, re.IGNORECASE
+                )
+            ),
+            "complex_punctuation": text.count(",") + text.count(";") + text.count(":"),
+            "abstract_concepts": len(
+                re.findall(
+                    r"\b(?:concept|theory|principle|system|process|mechanism)\b",
+                    text,
+                    re.IGNORECASE,
+                )
+            ),
+            "question_complexity": (
+                1
+                if any(
+                    word in question.lower()
+                    for word in ["how", "why", "analyze", "compare"]
+                )
+                else 0
+            ),
         }
-        
+
+        # Weighted scoring
         score = 0
-        if factors['question_words'] > 8: score += 1
-        if factors['answer_words'] > 30: score += 1  
-        if factors['complex_words'] > 3: score += 1
-        if factors['technical_terms'] > 1: score += 1
-        
-        if score <= 1: return "easy"
-        elif score <= 2: return "medium"
-        else: return "hard"
+        if complexity_indicators["word_count"] > 25:
+            score += 1
+        if complexity_indicators["long_words"] > 2:
+            score += 1
+        if complexity_indicators["technical_terms"] > 1:
+            score += 2
+        if complexity_indicators["complex_punctuation"] > 1:
+            score += 1
+        if complexity_indicators["abstract_concepts"] > 0:
+            score += 1
+        if complexity_indicators["question_complexity"] > 0:
+            score += 1
+
+        if score <= 2:
+            return "easy"
+        elif score <= 4:
+            return "medium"
+        else:
+            return "hard"
 
     def generate_flashcards(self, num_cards: int = 5) -> List[Dict[str, Any]]:
-        """Generate flashcards using best available method"""
-        
+        """Generate flashcards using the best available methods"""
+
         if not self.text.strip():
+            logger.warning("Empty text provided")
             return []
-            
-        logger.info(f"Generating {num_cards} flashcards from {len(self.text)} characters")
-        
+
+        logger.info(
+            f"Generating {num_cards} flashcards from {len(self.text)} characters"
+        )
         all_questions = []
-        
-        # Try AI generation first for 1-2 questions
-        if self.api_token:
-            logger.info("Attempting AI generation...")
-            ai_questions = self._try_huggingface_generation(self.text)
-            if ai_questions:
-                logger.info(f"AI generated {len(ai_questions)} questions")
-                all_questions.extend(ai_questions)
+
+        # Try Gemini API first if available
+        if self.gemini_api_key and self.gemini_api_key != "your_gemini_api_key_here":
+            logger.info("Attempting AI generation with Gemini...")
+
+            gemini_cards = self._try_gemini_generation(self.text, num_cards)
+            all_questions.extend(gemini_cards)
+
+            if all_questions:
+                logger.info(f"Gemini generated {len(all_questions)} questions")
             else:
-                logger.info("AI generation failed, using fallback only")
-        
-        # Generate remaining questions with smart fallbacks
+                logger.info("Gemini generation failed, using pattern-based methods")
+        else:
+            logger.info("Gemini API key not configured, using pattern-based methods")
+
+        # Generate remaining questions with advanced pattern matching if needed
         remaining = num_cards - len(all_questions)
         if remaining > 0:
-            logger.info(f"Generating {remaining} fallback questions")
-            fallback_questions = self._create_smart_fallback_questions(self.text, remaining)
-            
+            logger.info(f"Generating {remaining} questions using pattern matching")
+            pattern_questions = self._create_pattern_based_questions(
+                self.text, remaining
+            )
+
             # Adjust IDs to avoid conflicts
-            for i, q in enumerate(fallback_questions):
-                q['id'] = str(len(all_questions) + i + 1)
-                
-            all_questions.extend(fallback_questions)
-        
-        # Limit to requested number
-        final_questions = all_questions[:num_cards]
-        
-        logger.info(f"Generated {len(final_questions)} total flashcards")
+            for i, q in enumerate(pattern_questions):
+                q["id"] = str(len(all_questions) + i + 1)
+
+            all_questions.extend(pattern_questions)
+
+        # Final quality control and selection
+        final_questions = self._ensure_question_quality(all_questions, num_cards)
+
+        logger.info(f"Final output: {len(final_questions)} quality flashcards")
         for q in final_questions:
-            logger.info(f"Q{q['id']}: {q['question'][:50]}...")
-            logger.info(f"A{q['id']}: {q['answer'][:50]}...")
-        
+            logger.info(f"Q{q['id']}: {q['question'][:60]}...")
+            logger.info(f"A{q['id']}: {q['answer'][:60]}...")
+
         return final_questions
+
+    def _ensure_question_quality(
+        self, questions: List[Dict], target_count: int
+    ) -> List[Dict]:
+        """Final quality control and deduplication"""
+        quality_questions = []
+        seen_questions = set()
+
+        for q in questions:
+            question = q.get("question", "").strip()
+            answer = q.get("answer", "").strip()
+
+            # Quality checks
+            if not self._is_quality_question(question, answer):
+                continue
+
+            # Deduplication
+            question_key = self._normalize_for_comparison(question)
+            if question_key in seen_questions:
+                continue
+
+            seen_questions.add(question_key)
+            quality_questions.append(q)
+
+            if len(quality_questions) >= target_count:
+                break
+
+        return quality_questions
+
+    def _is_quality_question(self, question: str, answer: str) -> bool:
+        """Check if question meets quality standards"""
+        return (
+            len(question) >= 10
+            and len(question) <= 150
+            and len(answer) >= 15
+            and len(answer) <= 500
+            and question.endswith("?")
+            and any(
+                word in question.lower()
+                for word in ["what", "how", "why", "when", "where", "which", "who"]
+            )
+            and not question.lower().startswith(("question:", "ask:", "generate:"))
+            and not answer.lower().startswith(("answer:", "response:"))
+            and question != answer
+            and len(question.split()) >= 3
+            and len(answer.split()) >= 4
+        )
+
+    def _normalize_for_comparison(self, text: str) -> str:
+        """Normalize text for comparison to avoid duplicates"""
+        # Remove common words and normalize
+        normalized = re.sub(
+            r"\b(?:what|is|the|a|an|how|does|do|are)\b", "", text.lower()
+        )
+        normalized = re.sub(r"[^\w\s]", "", normalized)
+        normalized = re.sub(r"\s+", " ", normalized).strip()
+        return normalized

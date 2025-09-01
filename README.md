@@ -10,7 +10,7 @@ StudyPal revolutionizes how students approach learning by converting their study
 
 ### Key Features
 
-- **AI-Powered Question Generation**: Uses Hugging Face's advanced question-answering API to automatically generate intelligent quiz questions from your study materials
+- **AI-Powered Question Generation**: Uses Gemini's advanced question-answering API to automatically generate intelligent quiz questions from your study materials
 - **Interactive Flashcard Experience**: Smooth flip animations and intuitive navigation create an engaging study environment
 - **Persistent Storage System**: Comprehensive database integration with Supabase ensures your flashcard sets are saved and accessible for future study sessions
 - **Beginner-Friendly Design**: Clean, distraction-free interface focuses on learning rather than complex navigation
@@ -37,12 +37,12 @@ Traditional studying methods often fail because they're passive and one-dimensio
 
 **AI Integration:**
 
-- **Hugging Face Transformers API**: Advanced natural language processing for intelligent question generation
+- **Gemini Transformers API**: Advanced natural language processing for intelligent question generation
 
 ### System Workflow
 
 1. **Content Input**: User pastes study notes through a clean HTML textarea interface
-2. **AI Processing**: Flask backend processes the text and sends structured prompts to Hugging Face API requesting "Generate 5 quiz questions"
+2. **AI Processing**: Flask backend processes the text and sends structured prompts to Gemini API requesting "Generate 5 quiz questions"
 3. **Dynamic Rendering**: JavaScript creates interactive flashcards with CSS3 flip animations and smooth transitions
 4. **Data Persistence**: Supabase stores generated flashcards with metadata for future access and reuse
 
@@ -63,7 +63,7 @@ Traditional studying methods often fail because they're passive and one-dimensio
 - Python 3.8+
 - Flask
 - Supabase account
-- Hugging Face API key
+- Gemini API key
 
 ### Installation
 
@@ -96,8 +96,8 @@ Traditional studying methods often fail because they're passive and one-dimensio
    FLASK_DEBUG=True
    SECRET_KEY=your_secret_key_here
 
-   # Hugging Face API
-   HUGGING_FACE_TOKEN=your_huggingface_token_here
+   # Gemini API
+   GEMINI_API_KEY=your_gemini_api_key_here
 
    # Supabase Configuration
    SUPABASE_URL=your_supabase_url_here
@@ -234,7 +234,6 @@ Contributions are welcome and appreciated! To contribute to StudyPal:
 
 ## Acknowledgments
 
-- [Hugging Face](https://huggingface.co/) for providing powerful AI models and accessible API infrastructure
 - [Supabase](https://supabase.com/) for seamless database integration and developer-friendly backend services
 - [Flask](https://flask.palletsprojects.com/) community for excellent documentation and framework support
 - PLP July Cohort Vibe Coding Hackathon organizers for promoting educational innovation and providing a platform for meaningful solutions

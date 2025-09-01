@@ -21,7 +21,6 @@ const API_CONFIG = {
     }
 };
 
-
 // DOM Elements Cache
 const DOMElements = {
     studyNotes: null,
@@ -46,28 +45,40 @@ const DOMElements = {
     loadingSaved: null
 };
 
-// Initialize DOM elements
+// Initialize DOM elements with validation
 function initializeDOMElements() {
-    DOMElements.studyNotes = document.getElementById('studyNotes');
-    DOMElements.generateBtn = document.getElementById('generateBtn');
-    DOMElements.saveBtn = document.getElementById('saveBtn');
-    DOMElements.loading = document.getElementById('loading');
-    DOMElements.messageArea = document.getElementById('messageArea');
-    DOMElements.flashcardsContainer = document.getElementById('flashcardsContainer');
-    DOMElements.controls = document.getElementById('controls');
-    DOMElements.cardActions = document.getElementById('cardActions');
-    DOMElements.wordCount = document.getElementById('wordCount');
-    DOMElements.cardsGenerated = document.getElementById('cardsGenerated');
-    DOMElements.studySessions = document.getElementById('studySessions');
-    DOMElements.savedSets = document.getElementById('savedSets');
-    DOMElements.currentCard = document.getElementById('currentCard');
-    DOMElements.totalCards = document.getElementById('totalCards');
-    DOMElements.prevBtn = document.getElementById('prevBtn');
-    DOMElements.nextBtn = document.getElementById('nextBtn');
-    DOMElements.sidebar = document.getElementById('sidebar');
-    DOMElements.sidebarContent = document.getElementById('sidebarContent');
-    DOMElements.sidebarToggle = document.getElementById('sidebarToggle');
-    DOMElements.loadingSaved = document.getElementById('loadingSaved');
+    const elements = {
+        studyNotes: 'studyNotes',
+        generateBtn: 'generateBtn',
+        saveBtn: 'saveBtn',
+        loading: 'loading',
+        messageArea: 'messageArea',
+        flashcardsContainer: 'flashcardsContainer',
+        controls: 'controls',
+        cardActions: 'cardActions',
+        wordCount: 'wordCount',
+        cardsGenerated: 'cardsGenerated',
+        studySessions: 'studySessions',
+        savedSets: 'savedSets',
+        currentCard: 'currentCard',
+        totalCards: 'totalCards',
+        prevBtn: 'prevBtn',
+        nextBtn: 'nextBtn',
+        sidebar: 'sidebar',
+        sidebarContent: 'sidebarContent',
+        sidebarToggle: 'sidebarToggle',
+        loadingSaved: 'loadingSaved'
+    };
+
+    // Initialize and validate each element
+    for (const [key, id] of Object.entries(elements)) {
+        DOMElements[key] = document.getElementById(id);
+        if (!DOMElements[key]) {
+            console.error(`Missing DOM element: ${id}`);
+        } else {
+            console.log(`Found element: ${id}`);
+        }
+    }
 }
 
 // Initialize the application
@@ -78,7 +89,11 @@ document.addEventListener('DOMContentLoaded', function () {
     setupEventListeners();
     updateStats();
     updateWordCount();
-    loadSavedCardSets();
+
+    // Load saved sets after a short delay to ensure DOM is ready
+    setTimeout(() => {
+        loadSavedCardSets();
+    }, 100);
 
     console.log('AI Study Buddy ready!');
 });
@@ -86,7 +101,9 @@ document.addEventListener('DOMContentLoaded', function () {
 // Setup event listeners
 function setupEventListeners() {
     // Text area input listener
-    DOMElements.studyNotes.addEventListener('input', updateWordCount);
+    if (DOMElements.studyNotes) {
+        DOMElements.studyNotes.addEventListener('input', updateWordCount);
+    }
 
     // Keyboard shortcuts
     document.addEventListener('keydown', handleKeyboardShortcuts);
@@ -94,6 +111,8 @@ function setupEventListeners() {
     // Sidebar close when clicking outside
     document.addEventListener('click', function (event) {
         if (AppState.sidebarOpen &&
+            DOMElements.sidebar &&
+            DOMElements.sidebarToggle &&
             !DOMElements.sidebar.contains(event.target) &&
             !DOMElements.sidebarToggle.contains(event.target)) {
             toggleSidebar();
@@ -103,6 +122,8 @@ function setupEventListeners() {
 
 // Word count functionality
 function updateWordCount() {
+    if (!DOMElements.studyNotes || !DOMElements.wordCount) return;
+
     const text = DOMElements.studyNotes.value.trim();
     const wordCount = text ? text.split(/\s+/).length : 0;
     DOMElements.wordCount.textContent = wordCount;
@@ -119,28 +140,51 @@ function updateWordCount() {
 
 // Update statistics display
 function updateStats() {
-    DOMElements.cardsGenerated.textContent = AppState.totalGenerated;
-    DOMElements.studySessions.textContent = AppState.sessions;
-    DOMElements.savedSets.textContent = AppState.savedSets;
+    if (DOMElements.cardsGenerated) DOMElements.cardsGenerated.textContent = AppState.totalGenerated;
+    if (DOMElements.studySessions) DOMElements.studySessions.textContent = AppState.sessions;
+    if (DOMElements.savedSets) DOMElements.savedSets.textContent = AppState.savedSets;
 }
 
-// Toggle sidebar
+// FIXED: Toggle sidebar with comprehensive debugging
 function toggleSidebar() {
+    console.log('Toggle sidebar called. Current state:', AppState.sidebarOpen);
+
+    if (!DOMElements.sidebar) {
+        console.error('Sidebar element not found, re-initializing...');
+        initializeDOMElements();
+        if (!DOMElements.sidebar) {
+            console.error('Still no sidebar element!');
+            return;
+        }
+    }
+
     AppState.sidebarOpen = !AppState.sidebarOpen;
 
     if (AppState.sidebarOpen) {
+        console.log('Opening sidebar...');
         DOMElements.sidebar.classList.add('open');
-        loadSavedCardSets(); // Refresh saved sets when opened
+
+        // Force reload the saved sets with delay
+        setTimeout(() => {
+            console.log('Loading saved sets after sidebar opened...');
+            loadSavedCardSets();
+        }, 150);
+
     } else {
+        console.log('Closing sidebar...');
         DOMElements.sidebar.classList.remove('open');
     }
 }
 
 // Show message to user
 function showMessage(text, type = 'success') {
+    if (!DOMElements.messageArea) return;
+
     DOMElements.messageArea.innerHTML = `<div class="message ${type}">${text}</div>`;
     setTimeout(() => {
-        DOMElements.messageArea.innerHTML = '';
+        if (DOMElements.messageArea) {
+            DOMElements.messageArea.innerHTML = '';
+        }
     }, 5000);
 }
 
@@ -267,6 +311,8 @@ function createFallbackCards() {
 
 // Main function to generate flashcards
 async function generateFlashcards() {
+    if (!DOMElements.studyNotes) return;
+
     const studyText = DOMElements.studyNotes.value.trim();
 
     // Validation
@@ -282,10 +328,12 @@ async function generateFlashcards() {
 
     // Update UI state
     AppState.isGenerating = true;
-    DOMElements.generateBtn.disabled = true;
-    DOMElements.generateBtn.textContent = '🤖 Generating...';
-    DOMElements.loading.style.display = 'block';
-    DOMElements.messageArea.innerHTML = '';
+    if (DOMElements.generateBtn) {
+        DOMElements.generateBtn.disabled = true;
+        DOMElements.generateBtn.textContent = 'Generating...';
+    }
+    if (DOMElements.loading) DOMElements.loading.style.display = 'block';
+    if (DOMElements.messageArea) DOMElements.messageArea.innerHTML = '';
 
     try {
         let flashcards = [];
@@ -314,7 +362,7 @@ async function generateFlashcards() {
 
             // Update UI
             displayFlashcards();
-            DOMElements.saveBtn.disabled = false;
+            if (DOMElements.saveBtn) DOMElements.saveBtn.disabled = false;
             updateStats();
 
             showMessage(`Successfully generated ${flashcards.length} flashcards!`, 'success');
@@ -329,14 +377,18 @@ async function generateFlashcards() {
     } finally {
         // Reset UI state
         AppState.isGenerating = false;
-        DOMElements.generateBtn.disabled = false;
-        DOMElements.generateBtn.innerHTML = '🚀 Generate Flashcards';
-        DOMElements.loading.style.display = 'none';
+        if (DOMElements.generateBtn) {
+            DOMElements.generateBtn.disabled = false;
+            DOMElements.generateBtn.innerHTML = 'Generate Flashcards';
+        }
+        if (DOMElements.loading) DOMElements.loading.style.display = 'none';
     }
 }
 
 // Display flashcards in the UI
 function displayFlashcards() {
+    if (!DOMElements.flashcardsContainer) return;
+
     if (AppState.flashcards.length === 0) {
         DOMElements.flashcardsContainer.innerHTML = `
             <div class="empty-state">
@@ -345,8 +397,8 @@ function displayFlashcards() {
                 <p>Your AI-generated flashcards will appear here</p>
             </div>
         `;
-        DOMElements.controls.style.display = 'none';
-        DOMElements.cardActions.style.display = 'none';
+        if (DOMElements.controls) DOMElements.controls.style.display = 'none';
+        if (DOMElements.cardActions) DOMElements.cardActions.style.display = 'none';
         return;
     }
 
@@ -370,19 +422,19 @@ function displayFlashcards() {
     `;
 
     // Update controls visibility and state
-    DOMElements.controls.style.display = 'flex';
-    DOMElements.cardActions.style.display = 'flex';
+    if (DOMElements.controls) DOMElements.controls.style.display = 'flex';
+    if (DOMElements.cardActions) DOMElements.cardActions.style.display = 'flex';
     updateNavigationControls();
 }
 
 // Update navigation controls
 function updateNavigationControls() {
-    DOMElements.currentCard.textContent = AppState.currentIndex + 1;
-    DOMElements.totalCards.textContent = AppState.flashcards.length;
+    if (DOMElements.currentCard) DOMElements.currentCard.textContent = AppState.currentIndex + 1;
+    if (DOMElements.totalCards) DOMElements.totalCards.textContent = AppState.flashcards.length;
 
     // Update button states
-    DOMElements.prevBtn.disabled = AppState.currentIndex === 0;
-    DOMElements.nextBtn.disabled = AppState.currentIndex === AppState.flashcards.length - 1;
+    if (DOMElements.prevBtn) DOMElements.prevBtn.disabled = AppState.currentIndex === 0;
+    if (DOMElements.nextBtn) DOMElements.nextBtn.disabled = AppState.currentIndex === AppState.flashcards.length - 1;
 }
 
 // Flip current card
@@ -418,7 +470,7 @@ function markCard(status) {
     AppState.cardStatuses.set(currentCard.id, status);
 
     // Visual feedback
-    const message = status === 'know' ? 'Marked as known! ✅' : 'Added to study list! 📚';
+    const message = status === 'know' ? 'Marked as known!' : 'Added to study list!';
     showMessage(message, 'success');
 
     // Auto-advance to next card after a brief delay
@@ -426,7 +478,7 @@ function markCard(status) {
         if (AppState.currentIndex < AppState.flashcards.length - 1) {
             nextCard();
         } else {
-            showMessage('You\'ve reviewed all cards! Great job! 🎉', 'success');
+            showMessage('You\'ve reviewed all cards! Great job!', 'success');
         }
     }, 1000);
 }
@@ -448,7 +500,7 @@ function shuffleCards() {
     displayFlashcards();
 }
 
-// Save flashcards to backend/database
+// FIXED: Save flashcards with better error handling
 async function saveFlashcards() {
     if (AppState.flashcards.length === 0) {
         showMessage('No flashcards to save!', 'error');
@@ -489,9 +541,13 @@ async function saveFlashcards() {
 
         AppState.savedSets++;
         updateStats();
-        loadSavedCardSets(); // Refresh the sidebar
 
-        showMessage(`Successfully saved "${title}" with ${AppState.flashcards.length} cards! 💾`, 'success');
+        // Force reload saved sets after successful save
+        setTimeout(() => {
+            loadSavedCardSets();
+        }, 200);
+
+        showMessage(`Successfully saved "${title}" with ${AppState.flashcards.length} cards!`, 'success');
 
     } catch (error) {
         console.error('Error saving flashcards:', error);
@@ -514,79 +570,165 @@ async function saveFlashcards() {
             updateStats();
             loadSavedCardSets();
 
-            showMessage(`Saved "${title}" locally (backend unavailable) 💾`, 'success');
+            showMessage(`Saved "${title}" locally (backend unavailable)`, 'success');
         } catch (localError) {
             showMessage('Failed to save flashcards. Please try again.', 'error');
         }
     }
 }
 
-// Load saved flashcard sets
+// FIXED: Load saved flashcard sets with improved card count handling
 async function loadSavedCardSets() {
-    if (!DOMElements.loadingSaved) return;
+    console.log('Loading saved card sets...');
 
-    DOMElements.loadingSaved.style.display = 'block';
-    DOMElements.loadingSaved.textContent = 'Loading saved sets...';
+    // CRITICAL: Wait for DOM to be ready
+    if (!DOMElements.sidebarContent) {
+        console.error('sidebarContent element not found, re-initializing DOM...');
+        initializeDOMElements();
+
+        if (!DOMElements.sidebarContent) {
+            console.error('Still no sidebarContent element after re-init!');
+            return;
+        }
+    }
+
+    // Show loading state
+    if (DOMElements.loadingSaved) {
+        DOMElements.loadingSaved.style.display = 'block';
+        DOMElements.loadingSaved.textContent = 'Loading saved sets...';
+    }
 
     try {
-        // Try to load from backend first
+        console.log('Fetching from:', API_CONFIG.endpoints.getFlashcards);
         const response = await fetch(API_CONFIG.endpoints.getFlashcards);
+        console.log('Response status:', response.status);
 
         if (response.ok) {
             const data = await response.json();
-            displaySavedSets(data.flashcard_sets || []);
-            AppState.savedSets = data.flashcard_sets ? data.flashcard_sets.length : 0;
+            console.log('Full API Response:', data);
+
+            const sets = data.flashcard_sets || [];
+            console.log('Sets array:', sets);
+            console.log('Number of sets:', sets.length);
+
+            // Update the saved sets count in AppState
+            AppState.savedSets = sets.length;
+            updateStats();
+
+            // CRITICAL: Force immediate display update
+            if (sets.length > 0) {
+                console.log('Calling displaySavedSets with', sets.length, 'sets');
+                displaySavedSets(sets, false);
+
+                // Double-check that content was actually updated
+                setTimeout(() => {
+                    console.log('Content after display:', DOMElements.sidebarContent.innerHTML.substring(0, 100));
+                    if (DOMElements.sidebarContent.innerHTML.includes('No saved sets')) {
+                        console.error('Content still shows empty state!');
+                        // Force a retry
+                        displaySavedSets(sets, false);
+                    }
+                }, 100);
+            } else {
+                console.log('No sets returned from API');
+                displaySavedSets([], false);
+            }
+
         } else {
-            throw new Error('Backend unavailable');
+            console.error('API Error:', response.status);
+            const errorText = await response.text();
+            console.error('Error details:', errorText);
+            throw new Error(`API returned ${response.status}: ${errorText}`);
         }
 
     } catch (error) {
-        console.warn('Backend load failed, trying local storage:', error);
+        console.warn('Backend failed, using localStorage:', error);
 
-        // Fallback to local storage
+        // Fallback to localStorage
         try {
             const localSets = JSON.parse(localStorage.getItem('studyBuddyCardSets') || '[]');
+            console.log('Local sets found:', localSets.length);
             displaySavedSets(localSets, true);
             AppState.savedSets = localSets.length;
+            updateStats();
         } catch (localError) {
-            console.error('Failed to load from local storage:', localError);
-            DOMElements.sidebarContent.innerHTML = '<p style="text-align: center; color: #666; padding: 20px;">No saved sets found</p>';
+            console.error('localStorage also failed:', localError);
+            DOMElements.sidebarContent.innerHTML = '<p style="text-align: center; color: red; padding: 20px;">Error loading saved sets</p>';
         }
     }
 
-    updateStats();
-    DOMElements.loadingSaved.style.display = 'none';
+    // Hide loading
+    if (DOMElements.loadingSaved) {
+        DOMElements.loadingSaved.style.display = 'none';
+    }
+
+    console.log('loadSavedCardSets completed');
 }
 
-// Display saved flashcard sets in sidebar
+// FIXED: Display saved sets with improved card count extraction
 function displaySavedSets(sets, isLocal = false) {
+    console.log('displaySavedSets called with:', sets.length, 'sets, isLocal:', isLocal);
+
+    if (!DOMElements.sidebarContent) {
+        console.error('sidebarContent element missing!');
+        // Try to find it again
+        DOMElements.sidebarContent = document.getElementById('sidebarContent');
+        if (!DOMElements.sidebarContent) {
+            console.error('Still cannot find sidebarContent element!');
+            return;
+        }
+    }
+
     if (!sets || sets.length === 0) {
-        DOMElements.sidebarContent.innerHTML = `
+        console.log('No sets, showing empty state');
+        const emptyHTML = `
             <div style="text-align: center; color: #666; padding: 20px;">
-                <p>📚 No saved sets yet</p>
-                <p style="font-size: 0.9rem; margin-top: 10px;">Create some flashcards and save them to see them here!</p>
+                <p>No saved sets yet</p>
+                <p style="font-size: 0.9rem; margin-top: 10px;">Create some flashcards and save them!</p>
             </div>
         `;
+        DOMElements.sidebarContent.innerHTML = emptyHTML;
+        console.log('Empty state HTML set');
         return;
     }
 
-    const setsHTML = sets.map(set => {
-        const cardCount = set.flashcards ? set.flashcards.length : set.totalCards || 0;
+    console.log('Processing', sets.length, 'sets for display');
+
+    // Generate HTML for each set with FIXED card count logic
+    const setsHTML = sets.map((set, index) => {
+        // FIXED: Improved card count extraction with detailed logging
+        let cardCount = 0;
+
+        if (isLocal) {
+            // Local storage format
+            cardCount = set.cards?.length || set.flashcards?.length || set.totalCards || set.total_cards || 0;
+        } else {
+            // Backend format - directly use total_cards
+            cardCount = set.total_cards || 0;
+            console.log(`Backend set "${set.title}": total_cards = ${set.total_cards}, using cardCount = ${cardCount}`);
+        }
+
+        // Fallback check
+        if (cardCount === 0) {
+            console.warn(`Warning: Set "${set.title}" has 0 card count. Raw set data:`, set);
+        }
+
         const date = new Date(set.created_at || set.timestamp).toLocaleDateString();
-        const setId = set.id || set.title; // Use id for backend, title for local
+        const setId = set.id || set.title;
+
+        console.log(`Set ${index + 1}: "${set.title}" -> ${cardCount} cards, id: ${setId}, date: ${date}`);
 
         return `
-            <div class="saved-card-set" data-set-id="${setId}" data-is-local="${isLocal}">
-                <div class="saved-set-title">${set.title}</div>
-                <div class="saved-set-meta">
-                    <span>${cardCount} cards</span>
-                    <span>${date}</span>
+            <div class="saved-card-set" data-set-id="${setId}" style="margin-bottom: 10px; padding: 15px; border: 1px solid #ddd; border-radius: 8px; background: white;">
+                <div class="saved-set-title" style="font-weight: bold; margin-bottom: 5px; color: #333;">${set.title}</div>
+                <div class="saved-set-meta" style="font-size: 0.9rem; color: #666; margin-bottom: 10px;">
+                    <span style="font-weight: 500;">${cardCount} cards</span> • <span>${date}</span>
                 </div>
                 <div class="saved-set-actions">
-                    <button class="mini-btn load-btn" onclick="loadSavedSet('${setId}', ${isLocal})">
+                    <button class="mini-btn load-btn" onclick="loadSavedSet('${setId}', ${isLocal})" style="background: #4CAF50; color: white; border: none; padding: 5px 10px; margin-right: 5px; border-radius: 4px; cursor: pointer; font-size: 0.9rem;">
                         Load
                     </button>
-                    <button class="mini-btn delete-btn" onclick="deleteSavedSet('${setId}', ${isLocal})">
+                    <button class="mini-btn delete-btn" onclick="deleteSavedSet('${setId}', ${isLocal})" style="background: #f44336; color: white; border: none; padding: 5px 10px; border-radius: 4px; cursor: pointer; font-size: 0.9rem;">
                         Delete
                     </button>
                 </div>
@@ -594,11 +736,51 @@ function displaySavedSets(sets, isLocal = false) {
         `;
     }).join('');
 
-    DOMElements.sidebarContent.innerHTML = setsHTML;
+    console.log('Generated HTML preview:', setsHTML.substring(0, 200) + '...');
+    console.log('Total HTML length:', setsHTML.length);
+
+    // CRITICAL: Force the content update with error handling
+    try {
+        // Clear content first
+        DOMElements.sidebarContent.innerHTML = '';
+
+        // Force a repaint
+        DOMElements.sidebarContent.offsetHeight;
+
+        // Set new content
+        DOMElements.sidebarContent.innerHTML = setsHTML;
+        console.log('innerHTML updated successfully');
+
+        // Verify the update worked
+        const updatedContent = DOMElements.sidebarContent.innerHTML;
+        console.log('Verification - updated content length:', updatedContent.length);
+        console.log('Verification - content preview:', updatedContent.substring(0, 150) + '...');
+
+        // Force another repaint
+        DOMElements.sidebarContent.offsetHeight;
+
+        // Final verification after repaint
+        setTimeout(() => {
+            const finalContent = DOMElements.sidebarContent.innerHTML;
+            if (finalContent.length < 100) {
+                console.error('CRITICAL: Content appears to be empty or corrupted after update!');
+                console.error('Final content:', finalContent);
+                // Try one more time
+                DOMElements.sidebarContent.innerHTML = setsHTML;
+            } else {
+                console.log('SUCCESS: Content verified to be properly displayed');
+            }
+        }, 50);
+
+    } catch (updateError) {
+        console.error('Failed to update innerHTML:', updateError);
+    }
 }
 
-// Load a specific saved flashcard set
+// FIXED: Load a specific saved flashcard set with proper card count update
 async function loadSavedSet(setId, isLocal = false) {
+    console.log(`Loading set: ${setId}, isLocal: ${isLocal}`);
+
     try {
         showMessage('Loading flashcard set...', 'success');
 
@@ -608,28 +790,51 @@ async function loadSavedSet(setId, isLocal = false) {
             // Load from local storage
             const localSets = JSON.parse(localStorage.getItem('studyBuddyCardSets') || '[]');
             setData = localSets.find(set => set.title === setId);
+            console.log('Found local set:', setData);
         } else {
             // Load from backend
+            console.log(`Fetching from: ${API_CONFIG.endpoints.getFlashcards}/${setId}`);
             const response = await fetch(`${API_CONFIG.endpoints.getFlashcards}/${setId}`);
+            console.log('Load response status:', response.status);
+
             if (response.ok) {
                 setData = await response.json();
+                console.log('Backend set data:', setData);
+            } else {
+                console.error('Backend load failed with status:', response.status);
+                const errorText = await response.text();
+                console.error('Error response:', errorText);
+                throw new Error(`Failed to load set: ${response.status}`);
             }
         }
 
         if (setData) {
-            // Load the flashcards
+            console.log('Set data loaded:', {
+                title: setData.title,
+                cardsCount: setData.cards ? setData.cards.length : setData.flashcards ? setData.flashcards.length : 0,
+                hasOriginalText: !!setData.original_text
+            });
+
+            // Load the flashcards - handle both formats
             AppState.flashcards = setData.cards || setData.flashcards || [];
             AppState.currentIndex = 0;
             AppState.cardStatuses = new Map(setData.cardStatuses || setData.card_statuses || []);
 
+            console.log('Loaded flashcards:', AppState.flashcards);
+
             // Update UI
-            if (setData.original_text) {
+            if (setData.original_text && DOMElements.studyNotes) {
                 DOMElements.studyNotes.value = setData.original_text;
                 updateWordCount();
             }
 
             if (AppState.flashcards.length > 0) {
-                displayFlashcards();
+                // Ensure cards have proper structure
+                AppState.flashcards = AppState.flashcards.map((card, index) => ({
+                    ...card,
+                    id: card.id || index + 1,
+                    isFlipped: false // Reset flip state
+                }));
                 DOMElements.saveBtn.disabled = false;
                 showMessage(`Loaded "${setData.title}" with ${AppState.flashcards.length} cards!`, 'success');
 
@@ -638,14 +843,16 @@ async function loadSavedSet(setId, isLocal = false) {
                     toggleSidebar();
                 }
             } else {
+                console.error('❌ No cards found in loaded set');
                 throw new Error('No cards found in set');
             }
         } else {
+            console.error('❌ Set data is null/undefined');
             throw new Error('Set not found');
         }
 
     } catch (error) {
-        console.error('Error loading flashcard set:', error);
+        console.error('❌ Error loading flashcard set:', error);
         showMessage('Failed to load flashcard set. It may have been deleted.', 'error');
         loadSavedCardSets(); // Refresh the list
     }
@@ -686,6 +893,54 @@ async function deleteSavedSet(setId, isLocal = false) {
         showMessage('Failed to delete flashcard set. Please try again.', 'error');
     }
 }
+
+function debugSidebar() {
+    console.log('🔍 SIDEBAR DEBUG INFO:');
+    console.log('- AppState.sidebarOpen:', AppState.sidebarOpen);
+    console.log('- Sidebar element:', DOMElements.sidebar);
+    console.log('- Sidebar classes:', DOMElements.sidebar?.className);
+    console.log('- Sidebar content:', DOMElements.sidebarContent);
+    console.log('- Content innerHTML length:', DOMElements.sidebarContent?.innerHTML.length);
+    console.log('- Content HTML preview:', DOMElements.sidebarContent?.innerHTML.substring(0, 300));
+    console.log('- CSS display:', window.getComputedStyle(DOMElements.sidebar).display);
+    console.log('- CSS visibility:', window.getComputedStyle(DOMElements.sidebar).visibility);
+}
+
+// ENHANCED: Toggle sidebar with debugging
+function toggleSidebar() {
+    console.log('Toggle sidebar called. Current state:', AppState.sidebarOpen);
+
+    if (!DOMElements.sidebar) {
+        console.error('Sidebar element not found!');
+        return;
+    }
+
+    AppState.sidebarOpen = !AppState.sidebarOpen;
+
+    if (AppState.sidebarOpen) {
+        console.log('Opening sidebar...');
+        DOMElements.sidebar.classList.add('open');
+
+        // Force reload the saved sets
+        setTimeout(() => {
+            loadSavedCardSets();
+        }, 100);
+
+    } else {
+        console.log('Closing sidebar...');
+        DOMElements.sidebar.classList.remove('open');
+    }
+}
+// Add debugging helper to window object
+window.StudyBuddyDebug = {
+    debugSidebar,
+    loadSavedCardSets,
+    displaySavedSets,
+    state: AppState,
+    dom: DOMElements
+};
+
+console.log('🔧 Debug helpers available: window.StudyBuddyDebug');
 
 // Keyboard shortcuts handler
 function handleKeyboardShortcuts(event) {
