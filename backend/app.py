@@ -14,13 +14,16 @@ logger = logging.getLogger(__name__)
 # Updated Flask app initialization to serve frontend
 app = Flask(__name__, static_folder="../frontend", static_url_path="")
 
-# Configure CORS - more restrictive for production
 if os.environ.get("FLASK_ENV") == "development":
     CORS(app)
 else:
-    # In production, we serve everything from same domain, so CORS not needed
-    # But if you need it, configure it properly
-    CORS(app, origins=["https://studypal-fikn.onrender.com"])
+    CORS(
+        app,
+        origins=[
+            "https://ai-study-buddy-kvkr.onrender.com",
+            "https://studypal-fikn.onrender.com",
+        ],
+    )
 
 # Storage configuration - choose between Supabase and in-memory
 USE_SUPABASE = bool(os.getenv("SUPABASE_URL") and os.getenv("SUPABASE_KEY"))
