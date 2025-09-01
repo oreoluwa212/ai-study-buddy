@@ -6,11 +6,30 @@
 
 body {
   font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: #f3f4f6; /* Clean light background */
   min-height: 100vh;
   padding: 20px;
   color: #333;
   position: relative;
+  overflow-y: scroll;
+}
+
+body::-webkit-scrollbar {
+  width: 12px !important;
+}
+
+body::-webkit-scrollbar-track {
+  background: #e5e7eb !important;
+  border-radius: 10px !important;
+}
+
+body::-webkit-scrollbar-thumb {
+  background: linear-gradient(135deg, #667eea, #764ba2) !important;
+  border-radius: 10px !important;
+}
+
+body::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(135deg, #5a6fd8, #653a9b) !important;
 }
 
 .container {

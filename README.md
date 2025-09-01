@@ -1,4 +1,4 @@
-# AI Study Buddy - Flashcard Generator
+# StudyPal - Flashcard Generator
 
 **StudyPal** - An intelligent flashcard generator that transforms your study notes into interactive learning experiences using AI.
 

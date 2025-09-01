@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-AI Study Buddy - Project Runner
+StudyPal - Project Runner
 This script helps you run the entire application easily
 """
 
@@ -104,7 +104,7 @@ CORS_ORIGINS=http://localhost:3000,http://127.0.0.1:3000,http://localhost:8000
 
 def run_backend():
     """Run the Flask backend"""
-    print("\n🚀 Starting AI Study Buddy Backend...")
+    print("\n🚀 Starting StudyPal Backend...")
     print("📍 Backend will run on: http://localhost:5000")
 
     try:
@@ -123,7 +123,7 @@ def run_backend():
             use_reloader=False,  # Disable reloader to prevent issues with threading
         )
     except KeyboardInterrupt:
-        print("\n👋 Shutting down AI Study Buddy...")
+        print("\n👋 Shutting down StudyPal...")
         print("Thanks for using the app!")
     except Exception as e:
         print(f"❌ Error running backend: {e}")
@@ -167,7 +167,7 @@ def open_browser_delayed():
 
 def main():
     """Main function"""
-    print("🧠 AI Study Buddy - Project Setup & Runner")
+    print("🧠 StudyPal - Project Setup & Runner")
     print("=" * 50)
 
     # Check Python version

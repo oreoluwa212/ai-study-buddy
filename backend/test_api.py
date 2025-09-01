@@ -53,7 +53,7 @@ def test_flashcard_generation():
         print(f"Request failed: {e}")
 
 if __name__ == "__main__":
-    print("Testing AI Study Buddy Backend...")
+    print("Testing StudyPal Backend...")
     print("=" * 40)
     
     if test_backend_health():
