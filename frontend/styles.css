@@ -19,17 +19,17 @@ body::-webkit-scrollbar {
 }
 
 body::-webkit-scrollbar-track {
-  background: #5986df !important;
+  background: #f0edf3 !important;
   border-radius: 10px !important;
 }
 
 body::-webkit-scrollbar-thumb {
-  background: linear-gradient(135deg, #667eea, #764ba2) !important;
+  background: linear-gradient(135deg, #f0edf3, #fff) !important;
   border-radius: 10px !important;
 }
 
 body::-webkit-scrollbar-thumb:hover {
-  background: linear-gradient(135deg, #5a6fd8, #653a9b) !important;
+  background: linear-gradient(135deg, #f0edf3, #fff) !important;
 }
 
 .container {
