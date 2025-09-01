@@ -12,9 +12,3 @@ services:
         value: production
       - key: FLASK_DEBUG
         value: False
-      # IMPORTANT: Add these secret values in Render Dashboard, not here!
-      # Go to your service → Environment tab and add:
-      # - SECRET_KEY: dcb2a3234b3ba4b3bde5847d246d7e8e319cdc48eecd20a2cf1163fda6ad9fe8
-      # - GEMINI_API_KEY: AIzaSyDKAG1BxdlA9jeBFsbKAo27QK7UClbO5Uc
-      # - SUPABASE_URL: https://oattaywzfagyfqgdfgil.supabase.co
-      # - SUPABASE_KEY: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9hdHRheXd6ZmFneWZxZ2RmZ2lsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTY1NDU3MjAsImV4cCI6MjA3MjEyMTcyMH0.k8LRQCejKSNcMcg2bTmTKontgbyaF-CZTYRnQahTlG4
