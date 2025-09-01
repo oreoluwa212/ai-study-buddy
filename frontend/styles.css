@@ -6,7 +6,7 @@
 
 body {
   font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
-  background: #f3f4f6; /* Clean light background */
+  background: #5986df;
   min-height: 100vh;
   padding: 20px;
   color: #333;
@@ -19,7 +19,7 @@ body::-webkit-scrollbar {
 }
 
 body::-webkit-scrollbar-track {
-  background: #e5e7eb !important;
+  background: #5986df !important;
   border-radius: 10px !important;
 }
 
