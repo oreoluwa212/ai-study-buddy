@@ -70,6 +70,19 @@ Machine learning is a subset of artificial intelligence that enables computers t
             <div class="word-count"><span id="wordCount">0</span> words</div>
           </div>
 
+          <!-- User Email Input -->
+          <div class="user-input">
+            <input
+              type="email"
+              id="userEmail"
+              placeholder="Enter your email for premium features"
+              class="email-input"
+            />
+            <button class="btn btn-outline" onclick="setUserEmail()">
+              Set Email
+            </button>
+          </div>
+
           <div class="buttons">
             <button
               class="btn btn-primary"
@@ -149,6 +162,83 @@ Machine learning is a subset of artificial intelligence that enables computers t
       </div>
     </div>
 
+    <!-- Payment Modal -->
+    <div class="modal-overlay" id="paymentModal">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h2>🚀 Upgrade to StudyPal Premium</h2>
+          <button class="modal-close" onclick="closePaymentModal()">×</button>
+        </div>
+
+        <div class="modal-body">
+          <div class="premium-features">
+            <h3>Premium Features</h3>
+            <ul class="feature-list">
+              <li>✨ Unlimited flashcard generation</li>
+              <li>🧠 Advanced AI question types</li>
+              <li>📚 Unlimited saved sets</li>
+              <li>🎯 Smart difficulty adjustment</li>
+              <li>📊 Learning analytics</li>
+              <li>🔄 Advanced shuffle algorithms</li>
+            </ul>
+          </div>
+
+          <div class="pricing-options">
+            <div class="price-card active" data-plan="monthly">
+              <h4>Monthly Plan</h4>
+              <div class="price">KES 500<span>/month</span></div>
+              <p>Perfect for regular learners</p>
+            </div>
+
+            <div class="price-card" data-plan="yearly">
+              <h4>Yearly Plan</h4>
+              <div class="price">KES 5,000<span>/year</span></div>
+              <p>Save 17% - Best value!</p>
+              <div class="badge">Most Popular</div>
+            </div>
+          </div>
+
+          <div class="user-info">
+            <input
+              type="email"
+              id="modalUserEmail"
+              placeholder="Enter your email address"
+              class="email-input"
+              required
+            />
+          </div>
+
+          <div class="payment-loading" id="paymentLoading" style="display: none">
+            <div class="spinner"></div>
+            <p>Preparing your payment...</p>
+          </div>
+
+          <div class="payment-error" id="paymentError" style="display: none">
+            <p>Payment failed. Please try again.</p>
+          </div>
+
+          <div class="payment-success" id="paymentSuccess" style="display: none">
+            <div class="success-icon">✅</div>
+            <h3>Payment Successful!</h3>
+            <p>Welcome to StudyPal Premium! Your account has been upgraded.</p>
+          </div>
+        </div>
+
+        <div class="modal-footer">
+          <button class="btn btn-secondary" onclick="closePaymentModal()">
+            Cancel
+          </button>
+          <button
+            class="btn btn-primary payment-btn"
+            id="proceedPaymentBtn"
+            onclick="initiatePayment()"
+          >
+            Continue to Payment
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Add IntaSend JavaScript SDK -->
+    <script src="https://unpkg.com/intasend-inlinejs-sdk@4/lib/intasend-inline.js"></script>
     <script src="script.js"></script>
-  </body>
-</html>
