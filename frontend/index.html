@@ -70,19 +70,6 @@ Machine learning is a subset of artificial intelligence that enables computers t
             <div class="word-count"><span id="wordCount">0</span> words</div>
           </div>
 
-          <!-- User Email Input -->
-          <div class="user-input">
-            <input
-              type="email"
-              id="userEmail"
-              placeholder="Enter your email for premium features"
-              class="email-input"
-            />
-            <button class="btn btn-outline" onclick="setUserEmail()">
-              Set Email
-            </button>
-          </div>
-
           <div class="buttons">
             <button
               class="btn btn-primary"
@@ -208,7 +195,11 @@ Machine learning is a subset of artificial intelligence that enables computers t
             />
           </div>
 
-          <div class="payment-loading" id="paymentLoading" style="display: none">
+          <div
+            class="payment-loading"
+            id="paymentLoading"
+            style="display: none"
+          >
             <div class="spinner"></div>
             <p>Preparing your payment...</p>
           </div>
@@ -217,7 +208,11 @@ Machine learning is a subset of artificial intelligence that enables computers t
             <p>Payment failed. Please try again.</p>
           </div>
 
-          <div class="payment-success" id="paymentSuccess" style="display: none">
+          <div
+            class="payment-success"
+            id="paymentSuccess"
+            style="display: none"
+          >
             <div class="success-icon">✅</div>
             <h3>Payment Successful!</h3>
             <p>Welcome to StudyPal Premium! Your account has been upgraded.</p>
@@ -242,3 +237,5 @@ Machine learning is a subset of artificial intelligence that enables computers t
     <!-- Add IntaSend JavaScript SDK -->
     <script src="https://unpkg.com/intasend-inlinejs-sdk@4/lib/intasend-inline.js"></script>
     <script src="script.js"></script>
+  </body>
+</html>
