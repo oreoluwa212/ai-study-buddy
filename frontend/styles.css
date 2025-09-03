@@ -15,25 +15,21 @@ body {
 }
 
 body::-webkit-scrollbar {
-  width: 12px !important;
+  width: 12px;
 }
 
 body::-webkit-scrollbar-track {
-  background: #ffffff !important;
-  border-radius: 10px !important;
+  background: #ffffff;
+  border-radius: 10px;
 }
 
 body::-webkit-scrollbar-thumb {
-  background: linear-gradient(135deg, #b379ee, #5d5fe7) !important;
-  border-radius: 10px !important;
+  background: linear-gradient(135deg, #b379ee, #5d5fe7);
+  border-radius: 10px;
 }
 
 body::-webkit-scrollbar-thumb:hover {
-  background: linear-gradient(135deg, #b379ee, #5d5fe7) !important;
-}
-
-body::-webkit-scrollbar {
-  width: 12px;
+  background: linear-gradient(135deg, #b379ee, #5d5fe7);
 }
 
 .container {
@@ -94,7 +90,6 @@ body::-webkit-scrollbar {
   letter-spacing: 0.5px;
 }
 
-/* Sidebar Styles */
 .sidebar {
   position: fixed;
   top: 0;
@@ -401,6 +396,7 @@ body::-webkit-scrollbar {
   justify-content: center;
   position: relative;
   overflow: hidden;
+  animation: fadeInUp 0.5s ease-out;
 }
 
 .flashcard::before {
@@ -622,165 +618,6 @@ body::-webkit-scrollbar {
 .instructions li {
   margin-bottom: 8px;
 }
-
-/* Responsive Design */
-@media (max-width: 968px) {
-  .workspace {
-    grid-template-columns: 1fr;
-    gap: 20px;
-  }
-
-  .header h1 {
-    font-size: 2rem;
-  }
-
-  .stats {
-    gap: 15px;
-  }
-
-  .stat-item {
-    padding: 12px 20px;
-  }
-
-  .sidebar {
-    width: 100%;
-    right: -100%;
-  }
-
-  .sidebar-toggle {
-    right: 15px;
-    top: 15px;
-  }
-}
-
-@media (max-width: 768px) {
-  .container {
-    padding: 15px;
-  }
-
-  body {
-    padding: 15px;
-  }
-
-  .header h1 {
-    font-size: 1.8rem;
-  }
-
-  .header p {
-    font-size: 1rem;
-  }
-
-  .stats {
-    flex-wrap: wrap;
-    gap: 12px;
-  }
-
-  .buttons {
-    flex-direction: column;
-  }
-
-  .controls {
-    flex-wrap: wrap;
-    gap: 15px;
-    justify-content: center;
-  }
-
-  .card-actions {
-    flex-wrap: wrap;
-    gap: 8px;
-  }
-
-  .action-btn {
-    flex: 1;
-    min-width: 120px;
-  }
-
-  .panel {
-    padding: 20px;
-  }
-
-  .study-textarea {
-    min-height: 150px;
-  }
-
-  .flashcard {
-    min-height: 200px;
-    padding: 20px;
-  }
-}
-
-@media (max-width: 480px) {
-  .header h1 {
-    font-size: 1.5rem;
-  }
-
-  .stat-item {
-    padding: 10px 15px;
-  }
-
-  .stat-number {
-    font-size: 1.2rem;
-  }
-
-  .panel {
-    padding: 15px;
-  }
-
-  .flashcard {
-    padding: 15px;
-    min-height: 180px;
-  }
-
-  .flashcard-content h3 {
-    font-size: 1.1rem;
-  }
-
-  .flashcard-content p {
-    font-size: 0.95rem;
-  }
-}
-
-/* Animation for smooth transitions */
-@keyframes fadeInUp {
-  from {
-    opacity: 0;
-    transform: translateY(20px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-.flashcard {
-  animation: fadeInUp 0.5s ease-out;
-}
-
-/* Accessibility improvements */
-.btn:focus,
-.control-btn:focus,
-.action-btn:focus,
-.study-textarea:focus {
-  outline: 2px solid #667eea;
-  outline-offset: 2px;
-}
-
-/* High contrast mode support */
-@media (prefers-contrast: high) {
-  .panel {
-    border: 2px solid #333;
-  }
-
-  .btn {
-    border: 1px solid #333;
-  }
-
-  .flashcard {
-    border: 2px solid #333;
-  }
-}
-
-/* Payment Modal Styles - Add to your existing styles.css */
 
 .modal-overlay {
   display: none;
@@ -1040,7 +877,6 @@ body::-webkit-scrollbar {
   transform: none;
 }
 
-/* Premium indicator */
 .premium-indicator {
   position: fixed;
   top: 70px;
@@ -1061,7 +897,6 @@ body::-webkit-scrollbar {
   animation: slideInRight 0.5s ease;
 }
 
-/* Upgrade prompts */
 .upgrade-prompt {
   background: linear-gradient(
     135deg,
@@ -1104,7 +939,33 @@ body::-webkit-scrollbar {
   box-shadow: 0 6px 20px rgba(102, 126, 234, 0.4);
 }
 
-/* Animations */
+.upgrade-header-btn {
+  position: absolute;
+  top: 20px;
+  left: 20px;
+  padding: 10px 20px;
+  font-size: 0.9rem;
+  z-index: 100;
+  background: linear-gradient(45deg, #ff6b6b, #4ecdc4);
+  border: none;
+  border-radius: 25px;
+  color: white;
+  font-weight: bold;
+  cursor: pointer;
+  transition: transform 0.2s;
+}
+
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
 @keyframes fadeIn {
   from {
     opacity: 0;
@@ -1145,28 +1006,196 @@ body::-webkit-scrollbar {
   }
 }
 
-/* Responsive design */
+.btn:focus,
+.control-btn:focus,
+.action-btn:focus,
+.study-textarea:focus {
+  outline: 2px solid #667eea;
+  outline-offset: 2px;
+}
+
+@media (prefers-contrast: high) {
+  .panel {
+    border: 2px solid #333;
+  }
+  .btn {
+    border: 1px solid #333;
+  }
+  .flashcard {
+    border: 2px solid #333;
+  }
+}
+
+@media (max-width: 968px) {
+  .workspace {
+    grid-template-columns: 1fr;
+    gap: 20px;
+  }
+  .header h1 {
+    font-size: 2rem;
+  }
+  .stats {
+    gap: 15px;
+  }
+  .stat-item {
+    padding: 12px 20px;
+  }
+  .sidebar {
+    width: 100%;
+    right: -100%;
+  }
+  .sidebar-toggle {
+    right: 15px;
+    top: 15px;
+  }
+}
+
 @media (max-width: 768px) {
+  .container {
+    padding: 15px;
+  }
+  body {
+    padding: 15px;
+  }
+  .header {
+    padding-top: 10px;
+    margin-bottom: 40px;
+  }
+  .header h1 {
+    font-size: 1.8rem;
+    margin-top: 0;
+  }
+  .header p {
+    font-size: 1rem;
+  }
+  .stats {
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+  .buttons {
+    flex-direction: column;
+  }
+  .controls {
+    flex-wrap: wrap;
+    gap: 15px;
+    justify-content: center;
+  }
+  .card-actions {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .action-btn {
+    flex: 1;
+    min-width: 120px;
+  }
+  .panel {
+    padding: 20px;
+  }
+  .study-textarea {
+    min-height: 150px;
+  }
+  .flashcard {
+    min-height: 200px;
+    padding: 20px;
+  }
+  .upgrade-header-btn {
+    position: fixed;
+    top: auto;
+    bottom: 20px;
+    left: auto;
+    right: 20px;
+    z-index: 999;
+    padding: 12px 16px;
+    font-size: 0.85rem;
+    border-radius: 30px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.25);
+  }
+  .upgrade-prompt {
+    margin: 10px 0;
+    padding: 15px;
+    border-radius: 10px;
+  }
+  .upgrade-prompt p {
+    font-size: 0.85rem;
+    line-height: 1.4;
+  }
+  .upgrade-btn {
+    padding: 12px 20px;
+    font-size: 0.85rem;
+    width: 100%;
+    margin-top: 10px;
+  }
+  .premium-indicator {
+    top: 15px;
+    right: 15px;
+    font-size: 0.8rem;
+    padding: 6px 12px;
+  }
   .modal-content {
     width: 95%;
     margin: 10px;
   }
-
   .pricing-options {
     grid-template-columns: 1fr;
     gap: 12px;
   }
-
   .modal-body {
     padding: 20px;
   }
-
   .modal-footer {
     padding: 15px 20px;
     flex-direction: column-reverse;
   }
-
   .modal-footer .btn {
     width: 100%;
+  }
+}
+
+@media (max-width: 480px) {
+  .header h1 {
+    font-size: 1.5rem;
+  }
+  .stat-item {
+    padding: 10px 15px;
+  }
+  .stat-number {
+    font-size: 1.2rem;
+  }
+  .panel {
+    padding: 15px;
+  }
+  .flashcard {
+    padding: 15px;
+    min-height: 180px;
+  }
+  .flashcard-content h3 {
+    font-size: 1.1rem;
+  }
+  .flashcard-content p {
+    font-size: 0.95rem;
+  }
+  .upgrade-header-btn {
+    bottom: 15px;
+    right: 15px;
+    padding: 10px 14px;
+    font-size: 0.8rem;
+  }
+  body {
+    padding-bottom: 80px;
+  }
+  .sidebar-toggle {
+    top: 15px;
+    right: 15px;
+  }
+  .upgrade-prompt {
+    margin: 8px 0;
+    padding: 12px;
+  }
+  .upgrade-prompt p {
+    font-size: 0.8rem;
+  }
+  .upgrade-btn {
+    padding: 10px 16px;
+    font-size: 0.8rem;
   }
 }

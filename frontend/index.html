@@ -3,18 +3,17 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>StudyPal - Flashcard Generator</title>
+    <title>StudyPal - AI Flashcard Generator</title>
+    <link rel="icon" href="./assets/favicon.svg" type="image/svg+xml">
     <link rel="stylesheet" href="styles.css" />
   </head>
   <body>
     <div class="container">
-      <!-- Header -->
       <header class="header">
-        <h1>🧠 StudyPal</h1>
+        <h1>StudyPal</h1>
         <p>Transform your notes into interactive flashcards using AI</p>
       </header>
 
-      <!-- Stats -->
       <div class="stats">
         <div class="stat-item">
           <span class="stat-number" id="cardsGenerated">0</span>
@@ -30,10 +29,9 @@
         </div>
       </div>
 
-      <!-- Sidebar for saved cards -->
       <div class="sidebar" id="sidebar">
         <div class="sidebar-header">
-          <h3>📚 Saved Card Sets</h3>
+          <h3>Saved Card Sets</h3>
           <button class="close-sidebar" onclick="toggleSidebar()">×</button>
         </div>
         <div class="sidebar-content" id="sidebarContent">
@@ -43,18 +41,11 @@
         </div>
       </div>
 
-      <!-- Sidebar toggle button -->
-      <button
-        class="sidebar-toggle"
-        id="sidebarToggle"
-        onclick="toggleSidebar()"
-      >
-        📚 Saved Sets
+      <button class="sidebar-toggle" id="sidebarToggle" onclick="toggleSidebar()">
+        Saved Sets
       </button>
 
-      <!-- Main Workspace -->
       <div class="workspace">
-        <!-- Input Panel -->
         <div class="panel">
           <h2>📝 Your Study Notes</h2>
 
@@ -71,32 +62,22 @@ Machine learning is a subset of artificial intelligence that enables computers t
           </div>
 
           <div class="buttons">
-            <button
-              class="btn btn-primary"
-              id="generateBtn"
-              onclick="generateFlashcards()"
-            >
-              🚀 Generate Flashcards
+            <button class="btn btn-primary" id="generateBtn" onclick="generateFlashcards()">
+              Generate Flashcards
             </button>
-            <button
-              class="btn btn-secondary"
-              id="saveBtn"
-              onclick="saveFlashcards()"
-              disabled
-            >
-              💾 Save Cards
+            <button class="btn btn-secondary" id="saveBtn" onclick="saveFlashcards()" disabled>
+              Save Cards
             </button>
           </div>
 
           <div class="loading" id="loading">
-            <div>🤖 AI is analyzing your notes...</div>
+            <div>AI is analyzing your notes...</div>
             <div style="margin-top: 10px">This may take a few moments</div>
           </div>
 
           <div id="messageArea"></div>
         </div>
 
-        <!-- Flashcards Panel -->
         <div class="panel">
           <h2>🎴 Study Flashcards</h2>
 
@@ -136,7 +117,6 @@ Machine learning is a subset of artificial intelligence that enables computers t
         </div>
       </div>
 
-      <!-- Instructions -->
       <div class="instructions">
         <h3>How to Use:</h3>
         <ol>
@@ -149,11 +129,10 @@ Machine learning is a subset of artificial intelligence that enables computers t
       </div>
     </div>
 
-    <!-- Payment Modal -->
     <div class="modal-overlay" id="paymentModal">
       <div class="modal-content">
         <div class="modal-header">
-          <h2>🚀 Upgrade to StudyPal Premium</h2>
+          <h2>Upgrade to StudyPal Premium</h2>
           <button class="modal-close" onclick="closePaymentModal()">×</button>
         </div>
 
@@ -161,12 +140,12 @@ Machine learning is a subset of artificial intelligence that enables computers t
           <div class="premium-features">
             <h3>Premium Features</h3>
             <ul class="feature-list">
-              <li>✨ Unlimited flashcard generation</li>
-              <li>🧠 Advanced AI question types</li>
-              <li>📚 Unlimited saved sets</li>
-              <li>🎯 Smart difficulty adjustment</li>
-              <li>📊 Learning analytics</li>
-              <li>🔄 Advanced shuffle algorithms</li>
+              <li>Unlimited flashcard generation</li>
+              <li>Generate up to 10 cards per session</li>
+              <li>Unlimited saved sets</li>
+              <li>Premium content access</li>
+              <li>Advanced study analytics</li>
+              <li>Smart shuffle algorithms</li>
             </ul>
           </div>
 
@@ -195,25 +174,17 @@ Machine learning is a subset of artificial intelligence that enables computers t
             />
           </div>
 
-          <div
-            class="payment-loading"
-            id="paymentLoading"
-            style="display: none"
-          >
+          <div class="payment-loading" id="paymentLoading" style="display: none">
             <div class="spinner"></div>
-            <p>Preparing your payment...</p>
+            <p>Setting up your payment...</p>
           </div>
 
           <div class="payment-error" id="paymentError" style="display: none">
             <p>Payment failed. Please try again.</p>
           </div>
 
-          <div
-            class="payment-success"
-            id="paymentSuccess"
-            style="display: none"
-          >
-            <div class="success-icon">✅</div>
+          <div class="payment-success" id="paymentSuccess" style="display: none">
+            <div class="success-icon">Payment Successful!</div>
             <h3>Payment Successful!</h3>
             <p>Welcome to StudyPal Premium! Your account has been upgraded.</p>
           </div>
@@ -223,19 +194,36 @@ Machine learning is a subset of artificial intelligence that enables computers t
           <button class="btn btn-secondary" onclick="closePaymentModal()">
             Cancel
           </button>
-          <button
-            class="btn btn-primary payment-btn"
-            id="proceedPaymentBtn"
-            onclick="initiatePayment()"
-          >
+          <button class="btn btn-primary payment-btn" id="proceedPaymentBtn" onclick="initiatePayment()">
             Continue to Payment
           </button>
         </div>
       </div>
     </div>
 
-    <!-- Add IntaSend JavaScript SDK -->
-    <script src="https://unpkg.com/intasend-inlinejs-sdk@4/lib/intasend-inline.js"></script>
     <script src="script.js"></script>
+
+    <script>
+      const urlParams = new URLSearchParams(window.location.search);
+      const paymentStatus = urlParams.get("payment_status");
+      const paymentId = urlParams.get("payment_id");
+
+      if (paymentStatus === "success" && paymentId) {
+        setTimeout(() => {
+          if (window.StudyBuddy && window.StudyBuddy.handlePaymentSuccess) {
+            window.StudyBuddy.handlePaymentSuccess({ id: paymentId });
+          }
+        }, 1000);
+      } else if (paymentStatus === "failed") {
+        setTimeout(() => {
+          if (window.StudyBuddy && window.StudyBuddy.showMessage) {
+            window.StudyBuddy.showMessage(
+              "Payment was not completed. Please try again.",
+              "error"
+            );
+          }
+        }, 1000);
+      }
+    </script>
   </body>
 </html>

@@ -1,8 +1,4 @@
-// ==========================
-// StudyPal - Frontend with Tier System Integration
-// ==========================
-
-// Application State
+// StudyPal - Production Frontend Script
 const AppState = {
     flashcards: [],
     currentIndex: 0,
@@ -21,7 +17,6 @@ const AppState = {
     }
 };
 
-// API Configuration
 const API_BASE_URL = ['localhost', '127.0.0.1'].includes(window.location.hostname)
     ? 'http://127.0.0.1:5000'
     : 'https://studypal-fikn.onrender.com';
@@ -40,27 +35,25 @@ const API_CONFIG = {
     }
 };
 
-// Payment Configuration
 const PaymentConfig = {
     plans: {
         monthly: { amount: 500, currency: 'KES', period: 'month', description: 'StudyPal Premium - Monthly' },
         yearly: { amount: 5000, currency: 'KES', period: 'year', description: 'StudyPal Premium - Yearly' }
     },
     selectedPlan: 'monthly',
-    isProcessing: false
+    isProcessing: false,
+    checkoutWindow: null
 };
 
-// DOM Cache
 const DOMElements = {};
 
-// Initialize DOM Elements
 function initializeDOMElements() {
     const ids = [
-        'studyNotes', 'generateBtn', 'saveBtn', 'loading', 'messageArea', 'flashcardsContainer', 
-        'controls', 'cardActions', 'wordCount', 'cardsGenerated', 'studySessions', 'savedSets', 
-        'currentCard', 'totalCards', 'prevBtn', 'nextBtn', 'sidebar', 'sidebarContent', 
-        'sidebarToggle', 'loadingSaved', 'userEmail', 'paymentModal', 'proceedPaymentBtn',
-        'paymentLoading', 'paymentError', 'paymentSuccess'
+        'studyNotes', 'generateBtn', 'saveBtn', 'loading', 'messageArea', 'flashcardsContainer',
+        'controls', 'cardActions', 'wordCount', 'cardsGenerated', 'studySessions', 'savedSets',
+        'currentCard', 'totalCards', 'prevBtn', 'nextBtn', 'sidebar', 'sidebarContent',
+        'sidebarToggle', 'loadingSaved', 'paymentModal', 'proceedPaymentBtn',
+        'paymentLoading', 'paymentError', 'paymentSuccess', 'modalUserEmail'
     ];
 
     ids.forEach(id => {
@@ -69,21 +62,19 @@ function initializeDOMElements() {
     });
 }
 
-// ==========================
-// User Management & Tier System
-// ==========================
-
 function initializeUser() {
-    // Get user email from localStorage or prompt
-    const storedEmail = localStorage.getItem('studypal_user_email');
+    const urlParams = new URLSearchParams(window.location.search);
+    const urlEmail = urlParams.get('email');
+
+    const storedEmail = localStorage.getItem('studypal_user_email') || urlEmail;
     if (storedEmail) {
         AppState.userEmail = storedEmail;
-        if (DOMElements.userEmail) {
-            DOMElements.userEmail.value = storedEmail;
+        const emailInput = document.querySelector('#modalUserEmail');
+        if (emailInput) {
+            emailInput.value = storedEmail;
         }
     }
-    
-    // Check user tier
+
     if (AppState.userEmail) {
         checkUserTier();
     }
@@ -91,7 +82,7 @@ function initializeUser() {
 
 async function checkUserTier() {
     if (!AppState.userEmail) return;
-    
+
     try {
         const response = await fetch(`${API_CONFIG.endpoints.userTier}?user_email=${encodeURIComponent(AppState.userEmail)}`);
         if (response.ok) {
@@ -124,7 +115,6 @@ function updatePremiumFeatures() {
 }
 
 function updateUIForTier() {
-    // Update generate button text to show limits
     if (DOMElements.generateBtn) {
         const maxCards = AppState.premiumFeatures.maxCards;
         if (!AppState.isGenerating) {
@@ -132,33 +122,34 @@ function updateUIForTier() {
         }
     }
 
-    // Show/hide upgrade prompts
     if (AppState.userTier !== 'premium') {
         addUpgradeButton();
     }
 }
 
-function setUserEmail() {
-    const email = DOMElements.userEmail ? DOMElements.userEmail.value.trim() : '';
+function setUserEmail(email) {
+    if (!email) {
+        const emailInput = DOMElements.modalUserEmail;
+        email = emailInput ? emailInput.value.trim() : '';
+    }
+
     if (!email) {
         showMessage('Please enter your email address', 'error');
-        return;
+        return false;
     }
-    
+
     if (!isValidEmail(email)) {
         showMessage('Please enter a valid email address', 'error');
-        return;
+        return false;
     }
-    
+
     AppState.userEmail = email;
     localStorage.setItem('studypal_user_email', email);
     checkUserTier();
     showMessage('Email saved! Checking your tier...', 'success');
+    return true;
 }
 
-// ==========================
-// UI Helpers
-// ==========================
 function updateWordCount() {
     if (!DOMElements.studyNotes || !DOMElements.wordCount) return;
 
@@ -186,7 +177,7 @@ function showPremiumIndicator() {
     if (!indicator) {
         indicator = document.createElement('div');
         indicator.className = 'premium-indicator';
-        indicator.innerHTML = '⭐ Premium Active';
+        indicator.innerHTML = 'Premium Active';
         indicator.style.cssText = `
             position: fixed;
             top: 20px;
@@ -211,9 +202,435 @@ function hidePremiumIndicator() {
     }
 }
 
-// ==========================
-// Sidebar with Tier Support
-// ==========================
+async function initiatePayment() {
+    if (PaymentConfig.isProcessing) return;
+
+    const emailInput = DOMElements.modalUserEmail;
+    const email = emailInput ? emailInput.value.trim() : '';
+
+    if (!setUserEmail(email)) {
+        return;
+    }
+
+    PaymentConfig.isProcessing = true;
+    showPaymentLoading();
+
+    try {
+        const planData = PaymentConfig.plans[PaymentConfig.selectedPlan];
+        const paymentData = {
+            amount: planData.amount,
+            currency: planData.currency,
+            description: planData.description,
+            user_email: email,
+            plan_type: PaymentConfig.selectedPlan,
+            redirect_url: window.location.origin + '/payment-success',
+            cancel_url: window.location.origin + '/payment-cancel'
+        };
+
+        console.log('Creating payment...', paymentData);
+        const response = await fetch(API_CONFIG.endpoints.createPayment, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(paymentData)
+        });
+
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.error || 'Failed to create payment');
+        }
+
+        const data = await response.json();
+        console.log('Payment created:', data);
+
+        redirectToCheckout(data);
+
+    } catch (error) {
+        console.error('Payment creation failed:', error);
+        showPaymentError(error.message || 'Payment failed. Please try again.');
+    }
+}
+
+function redirectToCheckout(paymentData) {
+    try {
+        showPaymentRedirect();
+
+        const checkoutUrl = paymentData.checkout_url ||
+            `https://sandbox.intasend.com/checkout/${paymentData.payment_intent.reference}/`;
+
+        const windowFeatures = 'width=800,height=600,scrollbars=yes,resizable=yes,status=yes';
+        PaymentConfig.checkoutWindow = window.open(checkoutUrl, 'intasend_checkout', windowFeatures);
+
+        if (!PaymentConfig.checkoutWindow) {
+            showPaymentError('Popup blocked. Redirecting to payment page...');
+            setTimeout(() => {
+                window.location.href = checkoutUrl;
+            }, 2000);
+            return;
+        }
+
+        const checkInterval = setInterval(() => {
+            try {
+                if (PaymentConfig.checkoutWindow.closed) {
+                    clearInterval(checkInterval);
+                    setTimeout(() => {
+                        checkPaymentStatusAfterClose(paymentData.payment_intent.id);
+                    }, 1000);
+                }
+            } catch (e) {
+                // Cross-origin error is expected
+            }
+        }, 1000);
+
+        setTimeout(() => {
+            if (PaymentConfig.checkoutWindow && !PaymentConfig.checkoutWindow.closed) {
+                PaymentConfig.checkoutWindow.close();
+                clearInterval(checkInterval);
+                showPaymentTimeout();
+            }
+        }, 900000);
+
+    } catch (error) {
+        console.error('Checkout redirect failed:', error);
+        showPaymentError('Failed to open payment page. Please try again.');
+    }
+}
+
+async function checkPaymentStatusAfterClose(paymentId) {
+    try {
+        showPaymentStatusCheck();
+
+        const response = await fetch(`${API_CONFIG.endpoints.paymentStatus}/${paymentId}/status`);
+
+        if (response.ok) {
+            const data = await response.json();
+            console.log('Payment status:', data);
+
+            if (data.status === 'completed') {
+                handlePaymentSuccess({ id: paymentId }, data);
+                return;
+            } else if (data.status === 'failed' || data.status === 'cancelled') {
+                handlePaymentFailure('Payment was not completed.');
+                return;
+            }
+        }
+
+        showPaymentConfirmation(paymentId);
+
+    } catch (error) {
+        console.error('Status check failed:', error);
+        showPaymentConfirmation(paymentId);
+    }
+}
+
+function showPaymentLoading() {
+    if (DOMElements.paymentLoading) {
+        DOMElements.paymentLoading.style.display = 'block';
+        DOMElements.paymentLoading.innerHTML = `
+            <div class="spinner"></div>
+            <p>Setting up your payment...</p>
+        `;
+    }
+    hideOtherPaymentStates();
+    if (DOMElements.proceedPaymentBtn) DOMElements.proceedPaymentBtn.disabled = true;
+}
+
+function showPaymentRedirect() {
+    if (DOMElements.paymentLoading) {
+        DOMElements.paymentLoading.style.display = 'block';
+        DOMElements.paymentLoading.innerHTML = `
+            <div style="text-align: center;">
+                <div style="font-size: 48px; margin-bottom: 20px;">🚀</div>
+                <h4>Opening Payment Page...</h4>
+                <p>You'll be taken to IntaSend's secure payment page</p>
+                <div style="background: #e3f2fd; padding: 15px; border-radius: 8px; margin: 15px 0;">
+                    <strong>Payment Methods Available:</strong>
+                    <ul style="margin: 10px 0; padding-left: 20px; text-align: left;">
+                        <li>M-Pesa</li>
+                        <li>Airtel Money</li>
+                        <li>Credit/Debit Cards</li>
+                        <li>Bank Transfer</li>
+                    </ul>
+                </div>
+                <p><small>Complete your payment and return to this page</small></p>
+            </div>
+        `;
+    }
+}
+
+function showPaymentStatusCheck() {
+    if (DOMElements.paymentLoading) {
+        DOMElements.paymentLoading.style.display = 'block';
+        DOMElements.paymentLoading.innerHTML = `
+            <div class="spinner"></div>
+            <h4>Checking Payment Status...</h4>
+            <p>Please wait while we confirm your payment</p>
+        `;
+    }
+}
+
+function showPaymentConfirmation(paymentId) {
+    if (DOMElements.paymentLoading) {
+        DOMElements.paymentLoading.style.display = 'block';
+        DOMElements.paymentLoading.innerHTML = `
+            <div style="text-align: center;">
+                <div style="font-size: 48px; margin-bottom: 20px;">❓</div>
+                <h4>Did you complete the payment?</h4>
+                <p style="margin-bottom: 20px;">We couldn't automatically detect your payment status</p>
+                <div style="display: flex; gap: 10px; justify-content: center; flex-wrap: wrap;">
+                    <button onclick="handlePaymentSuccess({id: '${paymentId}'})" 
+                            style="background: #4CAF50; color: white; border: none; padding: 12px 24px; border-radius: 6px; cursor: pointer; margin: 5px;">
+                        Yes, I completed payment
+                    </button>
+                    <button onclick="handlePaymentFailure('Payment cancelled')" 
+                            style="background: #f44336; color: white; border: none; padding: 12px 24px; border-radius: 6px; cursor: pointer; margin: 5px;">
+                        No, I cancelled
+                    </button>
+                    <button onclick="checkPaymentStatusAfterClose('${paymentId}')" 
+                            style="background: #2196F3; color: white; border: none; padding: 12px 24px; border-radius: 6px; cursor: pointer; margin: 5px;">
+                        Check again
+                    </button>
+                </div>
+                <p><small style="color: #666; margin-top: 15px; display: block;">
+                    Don't worry - if you paid, your premium access will be activated
+                </small></p>
+            </div>
+        `;
+    }
+}
+
+function showPaymentTimeout() {
+    showPaymentError('Payment session expired. If you completed the payment, please click "Check Status" or contact support.');
+}
+
+function showPaymentError(message) {
+    PaymentConfig.isProcessing = false;
+    if (DOMElements.paymentError) {
+        DOMElements.paymentError.style.display = 'block';
+        DOMElements.paymentError.innerHTML = `
+            <div style="color: #f44336; padding: 15px; background: #ffebee; border-radius: 8px; border-left: 4px solid #f44336;">
+                <strong>Payment Error</strong>
+                <p style="margin: 10px 0 0 0;">${message}</p>
+            </div>
+        `;
+    }
+    if (DOMElements.paymentLoading) DOMElements.paymentLoading.style.display = 'none';
+    if (DOMElements.paymentSuccess) DOMElements.paymentSuccess.style.display = 'none';
+    if (DOMElements.proceedPaymentBtn) {
+        DOMElements.proceedPaymentBtn.disabled = false;
+        DOMElements.proceedPaymentBtn.textContent = 'Try Again';
+    }
+}
+
+function showPaymentSuccess() {
+    hideOtherPaymentStates();
+    if (DOMElements.paymentSuccess) {
+        DOMElements.paymentSuccess.style.display = 'block';
+        DOMElements.paymentSuccess.innerHTML = `
+            <div style="text-align: center; color: #4CAF50;">
+                <div style="font-size: 48px; margin-bottom: 15px;">✅</div>
+                <h3 style="margin-bottom: 10px; color: #2e7d32;">Payment Successful!</h3>
+                <p style="color: #4CAF50;">Your premium subscription is now active.</p>
+                <p><small style="color: #666;">Enjoy unlimited flashcards and advanced features!</small></p>
+            </div>
+        `;
+    }
+    if (DOMElements.proceedPaymentBtn) DOMElements.proceedPaymentBtn.style.display = 'none';
+}
+
+function hideOtherPaymentStates() {
+    if (DOMElements.paymentError) DOMElements.paymentError.style.display = 'none';
+    if (DOMElements.paymentSuccess) DOMElements.paymentSuccess.style.display = 'none';
+}
+
+function handlePaymentSuccess(paymentIntent, results = {}) {
+    console.log('Processing payment success:', paymentIntent, results);
+
+    PaymentConfig.isProcessing = false;
+
+    if (PaymentConfig.checkoutWindow && !PaymentConfig.checkoutWindow.closed) {
+        PaymentConfig.checkoutWindow.close();
+    }
+
+    AppState.userTier = 'premium';
+    updatePremiumFeatures();
+    updateUIForTier();
+
+    const premiumData = {
+        payment_id: paymentIntent.id,
+        plan: PaymentConfig.selectedPlan,
+        activated_at: new Date().toISOString(),
+        expires_at: PaymentConfig.selectedPlan === 'yearly'
+            ? new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString()
+            : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString()
+    };
+    localStorage.setItem('studypal_premium', JSON.stringify(premiumData));
+
+    showPaymentSuccess();
+    showPremiumIndicator();
+    removeUpgradeButton();
+
+    setTimeout(() => {
+        closePaymentModal();
+        showMessage('Welcome to StudyPal Premium! Enjoy unlimited features.', 'success');
+        loadSavedCardSets();
+    }, 3000);
+}
+
+function handlePaymentFailure(reason) {
+    console.log('Processing payment failure:', reason);
+    PaymentConfig.isProcessing = false;
+    if (PaymentConfig.checkoutWindow && !PaymentConfig.checkoutWindow.closed) {
+        PaymentConfig.checkoutWindow.close();
+    }
+    showPaymentError(reason || 'Payment failed. Please try again.');
+}
+
+function openPaymentModal() {
+    const modal = DOMElements.paymentModal;
+    if (modal) {
+        modal.classList.add('show');
+        resetPaymentModal();
+
+        const emailInput = DOMElements.modalUserEmail;
+        if (emailInput && AppState.userEmail) {
+            emailInput.value = AppState.userEmail;
+        }
+
+        setTimeout(() => {
+            if (emailInput) emailInput.focus();
+        }, 300);
+    }
+}
+
+function closePaymentModal() {
+    const modal = DOMElements.paymentModal;
+    if (modal) {
+        modal.classList.remove('show');
+        resetPaymentModal();
+    }
+    if (PaymentConfig.checkoutWindow && !PaymentConfig.checkoutWindow.closed) {
+        PaymentConfig.checkoutWindow.close();
+    }
+}
+
+function resetPaymentModal() {
+    hideOtherPaymentStates();
+    if (DOMElements.paymentLoading) DOMElements.paymentLoading.style.display = 'none';
+
+    if (DOMElements.proceedPaymentBtn) {
+        DOMElements.proceedPaymentBtn.style.display = 'block';
+        DOMElements.proceedPaymentBtn.disabled = false;
+        updatePaymentButtonText();
+    }
+
+    PaymentConfig.isProcessing = false;
+}
+
+function updatePaymentButtonText() {
+    if (DOMElements.proceedPaymentBtn) {
+        const planData = PaymentConfig.plans[PaymentConfig.selectedPlan];
+        DOMElements.proceedPaymentBtn.innerHTML = `
+            <span>Pay ${planData.currency} ${planData.amount}</span>
+            <small style="display: block; font-size: 0.8em;">via IntaSend</small>
+        `;
+    }
+}
+
+function setupPriceCardHandlers() {
+    document.addEventListener('click', (e) => {
+        if (e.target.closest('.price-card')) {
+            const card = e.target.closest('.price-card');
+            const plan = card.dataset.plan;
+
+            document.querySelectorAll('.price-card').forEach(c => c.classList.remove('active'));
+            card.classList.add('active');
+
+            PaymentConfig.selectedPlan = plan;
+            updatePaymentButtonText();
+        }
+    });
+}
+
+function showUpgradePrompt(message) {
+    showMessage(message, 'error');
+
+    const prompt = document.createElement('div');
+    prompt.className = 'upgrade-prompt';
+    prompt.style.cssText = `
+        position: fixed;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        background: white;
+        padding: 30px;
+        border-radius: 12px;
+        box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+        z-index: 1000;
+        max-width: 400px;
+        text-align: center;
+    `;
+    prompt.innerHTML = `
+        <h3 style="margin-top: 0; color: #333;">Upgrade to Premium</h3>
+        <p style="color: #666; margin: 15px 0;">${message}</p>
+        <div style="display: flex; gap: 10px; justify-content: center;">
+            <button onclick="openPaymentModal(); this.parentElement.parentElement.remove();" 
+                    style="background: #4CAF50; color: white; border: none; padding: 12px 24px; border-radius: 6px; cursor: pointer; font-weight: bold;">
+                Upgrade Now
+            </button>
+            <button onclick="this.parentElement.parentElement.remove();" 
+                    style="background: #ccc; color: #333; border: none; padding: 12px 24px; border-radius: 6px; cursor: pointer;">
+                Maybe Later
+            </button>
+        </div>
+    `;
+
+    document.body.appendChild(prompt);
+
+    setTimeout(() => {
+        if (prompt.parentNode) prompt.parentNode.removeChild(prompt);
+    }, 10000);
+}
+
+function addUpgradeButton() {
+    if (AppState.userTier === 'premium') return;
+    if (document.querySelector('.upgrade-header-btn')) return;
+
+    const header = document.querySelector('.header');
+    if (header) {
+        const upgradeBtn = document.createElement('button');
+        upgradeBtn.className = 'btn btn-primary upgrade-header-btn';
+        upgradeBtn.style.cssText = `
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            padding: 10px 20px;
+            font-size: 0.9rem;
+            z-index: 100;
+            background: linear-gradient(45deg, #FF6B6B, #4ECDC4);
+            border: none;
+            border-radius: 25px;
+            color: white;
+            font-weight: bold;
+            cursor: pointer;
+            transition: transform 0.2s;
+        `;
+        upgradeBtn.textContent = 'Upgrade to Premium';
+        upgradeBtn.onclick = openPaymentModal;
+        upgradeBtn.onmouseover = () => upgradeBtn.style.transform = 'scale(1.05)';
+        upgradeBtn.onmouseout = () => upgradeBtn.style.transform = 'scale(1)';
+
+        header.style.position = 'relative';
+        header.appendChild(upgradeBtn);
+    }
+}
+
+function removeUpgradeButton() {
+    const upgradeBtn = document.querySelector('.upgrade-header-btn');
+    if (upgradeBtn) {
+        upgradeBtn.remove();
+    }
+}
+
 function toggleSidebar() {
     if (!DOMElements.sidebar) return;
     AppState.sidebarOpen = !AppState.sidebarOpen;
@@ -227,24 +644,20 @@ function closeSidebar() {
     AppState.sidebarOpen = false;
 }
 
-// ==========================
-// Flashcard Generation with Tier Limits
-// ==========================
 async function generateFlashcards() {
     if (!DOMElements.studyNotes) return;
     const text = DOMElements.studyNotes.value.trim();
     if (!text || text.length < 30) return showMessage('Enter at least 30 characters', 'error');
 
-    // Check generation limits for free users
     if (AppState.userTier === 'free' && AppState.totalGenerated >= 15) {
         showUpgradePrompt('You\'ve reached the free limit of 15 flashcards. Upgrade to Premium for unlimited generation!');
         return;
     }
 
     AppState.isGenerating = true;
-    if (DOMElements.generateBtn) { 
-        DOMElements.generateBtn.disabled = true; 
-        DOMElements.generateBtn.textContent = 'Generating...'; 
+    if (DOMElements.generateBtn) {
+        DOMElements.generateBtn.disabled = true;
+        DOMElements.generateBtn.textContent = 'Generating...';
     }
     if (DOMElements.loading) DOMElements.loading.style.display = 'block';
     if (DOMElements.messageArea) DOMElements.messageArea.innerHTML = '';
@@ -273,12 +686,12 @@ async function generateFlashcards() {
         AppState.flashcards = flashcards;
         AppState.currentIndex = 0;
         AppState.totalGenerated += flashcards.length;
-        
+
         displayFlashcards();
         if (DOMElements.saveBtn) DOMElements.saveBtn.disabled = false;
         updateStats();
-        updateUIForTier(); // Update UI after generation
-        
+        updateUIForTier();
+
         showMessage(`Generated ${flashcards.length} flashcards! (${data.user_tier} tier)`, 'success');
 
     } catch (error) {
@@ -286,8 +699,8 @@ async function generateFlashcards() {
         showMessage(error.message || 'Failed to generate flashcards', 'error');
     } finally {
         AppState.isGenerating = false;
-        if (DOMElements.generateBtn) { 
-            DOMElements.generateBtn.disabled = false; 
+        if (DOMElements.generateBtn) {
+            DOMElements.generateBtn.disabled = false;
             const maxCards = AppState.premiumFeatures.maxCards;
             DOMElements.generateBtn.textContent = `Generate Flashcards (Max: ${maxCards})`;
         }
@@ -307,13 +720,9 @@ function parseBackendResponse(data) {
     }));
 }
 
-// ==========================
-// Save/Load/Delete with Tier Support
-// ==========================
 async function saveFlashcards() {
     if (!AppState.flashcards.length) return showMessage('No flashcards to save!', 'error');
-    
-    // Check save limits for free users
+
     if (AppState.userTier === 'free' && AppState.savedSets >= 3) {
         showUpgradePrompt('You\'ve reached the free limit of 3 saved sets. Upgrade to Premium for unlimited saves!');
         return;
@@ -333,27 +742,27 @@ async function saveFlashcards() {
         flashcards: AppState.flashcards,
         card_statuses: Array.from(AppState.cardStatuses.entries()),
         user_email: AppState.userEmail,
-        tier_required: 'free' // You can make this dynamic based on content complexity
+        tier_required: 'free'
     };
 
     try {
-        const response = await fetch(API_CONFIG.endpoints.saveFlashcards, { 
-            method: 'POST', 
-            headers: { 'Content-Type': 'application/json' }, 
-            body: JSON.stringify(dataToSave) 
+        const response = await fetch(API_CONFIG.endpoints.saveFlashcards, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(dataToSave)
         });
-        
+
         if (!response.ok) {
             const errorData = await response.json();
             throw new Error(errorData.error || 'Save failed');
         }
-        
+
         const result = await response.json();
         AppState.savedSets++;
         updateStats();
         setTimeout(loadSavedCardSets, 200);
         showMessage(`Saved "${title}"! (${result.storage_type})`, 'success');
-        
+
     } catch (error) {
         console.error('Save failed:', error);
         showMessage(error.message || 'Failed to save flashcards', 'error');
@@ -363,14 +772,14 @@ async function saveFlashcards() {
 async function loadSavedCardSets() {
     if (!DOMElements.sidebarContent) return;
     if (DOMElements.loadingSaved) DOMElements.loadingSaved.style.display = 'block';
-    
+
     let sets = [];
-    
+
     try {
-        const url = AppState.userEmail 
+        const url = AppState.userEmail
             ? `${API_CONFIG.endpoints.getFlashcards}?user_email=${encodeURIComponent(AppState.userEmail)}&include_locked=true`
             : API_CONFIG.endpoints.getFlashcards;
-            
+
         const response = await fetch(url);
         if (response.ok) {
             const data = await response.json();
@@ -381,7 +790,6 @@ async function loadSavedCardSets() {
         }
     } catch (error) {
         console.error('Failed to load sets:', error);
-        // Fallback to localStorage
         sets = JSON.parse(localStorage.getItem('studyBuddyCardSets') || '[]');
     }
 
@@ -393,7 +801,7 @@ async function loadSavedCardSets() {
 
 function displaySavedSets(sets) {
     if (!DOMElements.sidebarContent) return;
-    
+
     if (!sets.length) {
         DOMElements.sidebarContent.innerHTML = `
             <div style="text-align:center;color:#666;padding:20px;">
@@ -409,11 +817,11 @@ function displaySavedSets(sets) {
         const setId = set.id || set.title;
         const isLocked = set.is_locked || !set.can_access;
         const tierRequired = set.tier_required || 'free';
-        
+
         const lockIcon = isLocked ? '🔒' : '';
         const disabledClass = isLocked ? 'disabled' : '';
         const upgradeText = isLocked ? `<small style="color: #f44336;">Requires ${tierRequired} tier</small>` : '';
-        
+
         return `
             <div class="saved-card-set ${disabledClass}" style="padding: 12px; margin-bottom: 8px; border: 1px solid #ddd; border-radius: 8px; background: ${isLocked ? '#f5f5f5' : '#fff'};">
                 <div class="saved-set-title" style="font-weight: bold; display: flex; align-items: center; gap: 8px;">
@@ -449,10 +857,10 @@ async function loadSavedSet(setId, isLocal = false) {
             const local = JSON.parse(localStorage.getItem('studyBuddyCardSets') || '[]');
             setData = local.find(s => s.title === setId);
         } else {
-            const url = AppState.userEmail 
+            const url = AppState.userEmail
                 ? `${API_CONFIG.endpoints.getFlashcards}/${setId}?user_email=${encodeURIComponent(AppState.userEmail)}`
                 : `${API_CONFIG.endpoints.getFlashcards}/${setId}`;
-                
+
             const response = await fetch(url);
             if (!response.ok) {
                 if (response.status === 403) {
@@ -464,32 +872,32 @@ async function loadSavedSet(setId, isLocal = false) {
             }
             setData = await response.json();
         }
-        
+
         if (!setData) return showMessage('Failed to load set', 'error');
         if (setData.error) return showMessage(setData.error, 'error');
 
         AppState.flashcards = (setData.cards || setData.flashcards || []).map((card, idx) => ({
-            id: card.id || idx + 1, 
-            question: card.question, 
+            id: card.id || idx + 1,
+            question: card.question,
             answer: card.answer,
-            difficulty: card.difficulty || 'medium', 
-            type: card.type || 'general', 
+            difficulty: card.difficulty || 'medium',
+            type: card.type || 'general',
             isFlipped: false
         }));
 
         AppState.currentIndex = 0;
         AppState.cardStatuses = new Map(setData.cardStatuses || setData.card_statuses || []);
-        
-        if (DOMElements.studyNotes && setData.original_text) { 
-            DOMElements.studyNotes.value = setData.original_text; 
-            updateWordCount(); 
+
+        if (DOMElements.studyNotes && setData.original_text) {
+            DOMElements.studyNotes.value = setData.original_text;
+            updateWordCount();
         }
 
         displayFlashcards();
         updateStats();
         closeSidebar();
         showMessage(`Loaded set "${setData.title}"!`, 'success');
-        
+
     } catch (error) {
         console.error('Load failed:', error);
         showMessage('Failed to load flashcard set', 'error');
@@ -504,356 +912,28 @@ async function deleteSavedSet(setId, isLocal = false) {
             const local = JSON.parse(localStorage.getItem('studyBuddyCardSets') || '[]');
             localStorage.setItem('studyBuddyCardSets', JSON.stringify(local.filter(s => s.title !== setId)));
         } else {
-            const url = AppState.userEmail 
+            const url = AppState.userEmail
                 ? `${API_CONFIG.endpoints.deleteFlashcards}/${setId}?user_email=${encodeURIComponent(AppState.userEmail)}`
                 : `${API_CONFIG.endpoints.deleteFlashcards}/${setId}`;
-                
+
             const response = await fetch(url, { method: 'DELETE' });
             if (!response.ok) {
                 const errorData = await response.json();
                 throw new Error(errorData.error || 'Delete failed');
             }
         }
-        
+
         AppState.savedSets = Math.max(0, AppState.savedSets - 1);
         updateStats();
         loadSavedCardSets();
         showMessage('Deleted successfully!', 'success');
-        
+
     } catch (error) {
         console.error('Delete failed:', error);
         showMessage(error.message || 'Failed to delete set', 'error');
     }
 }
 
-// ==========================
-// Payment System Integration
-// ==========================
-function showUpgradePrompt(message) {
-    showMessage(message, 'error');
-    
-    // Create and show upgrade prompt
-    const prompt = document.createElement('div');
-    prompt.className = 'upgrade-prompt';
-    prompt.style.cssText = `
-        position: fixed;
-        top: 50%;
-        left: 50%;
-        transform: translate(-50%, -50%);
-        background: white;
-        padding: 30px;
-        border-radius: 12px;
-        box-shadow: 0 10px 30px rgba(0,0,0,0.3);
-        z-index: 1000;
-        max-width: 400px;
-        text-align: center;
-    `;
-    prompt.innerHTML = `
-        <h3 style="margin-top: 0; color: #333;">Upgrade to Premium</h3>
-        <p style="color: #666; margin: 15px 0;">${message}</p>
-        <div style="display: flex; gap: 10px; justify-content: center;">
-            <button onclick="openPaymentModal(); this.parentElement.parentElement.remove();" 
-                    style="background: #4CAF50; color: white; border: none; padding: 12px 24px; border-radius: 6px; cursor: pointer; font-weight: bold;">
-                Upgrade Now
-            </button>
-            <button onclick="this.parentElement.parentElement.remove();" 
-                    style="background: #ccc; color: #333; border: none; padding: 12px 24px; border-radius: 6px; cursor: pointer;">
-                Maybe Later
-            </button>
-        </div>
-    `;
-    
-    document.body.appendChild(prompt);
-    
-    // Auto remove after 10 seconds
-    setTimeout(() => {
-        if (prompt.parentNode) prompt.parentNode.removeChild(prompt);
-    }, 10000);
-}
-
-function addUpgradeButton() {
-    if (AppState.userTier === 'premium') return;
-    if (document.querySelector('.upgrade-header-btn')) return;
-
-    const header = document.querySelector('.header');
-    if (header) {
-        const upgradeBtn = document.createElement('button');
-        upgradeBtn.className = 'btn btn-primary upgrade-header-btn';
-        upgradeBtn.style.cssText = `
-            position: absolute;
-            top: 20px;
-            left: 20px;
-            padding: 10px 20px;
-            font-size: 0.9rem;
-            z-index: 100;
-            background: linear-gradient(45deg, #FF6B6B, #4ECDC4);
-            border: none;
-            border-radius: 25px;
-            color: white;
-            font-weight: bold;
-            cursor: pointer;
-            transition: transform 0.2s;
-        `;
-        upgradeBtn.textContent = '⭐ Upgrade to Premium';
-        upgradeBtn.onclick = openPaymentModal;
-        upgradeBtn.onmouseover = () => upgradeBtn.style.transform = 'scale(1.05)';
-        upgradeBtn.onmouseout = () => upgradeBtn.style.transform = 'scale(1)';
-        
-        header.style.position = 'relative';
-        header.appendChild(upgradeBtn);
-    }
-}
-
-function openPaymentModal() {
-    const modal = DOMElements.paymentModal;
-    if (modal) {
-        modal.classList.add('show');
-        resetPaymentModal();
-        
-        // Set user email if available
-        const emailInput = document.getElementById('modalUserEmail');
-        if (emailInput && AppState.userEmail) {
-            emailInput.value = AppState.userEmail;
-        }
-        
-        // Focus email input
-        setTimeout(() => {
-            if (emailInput) emailInput.focus();
-        }, 300);
-    }
-}
-
-function closePaymentModal() {
-    const modal = DOMElements.paymentModal;
-    if (modal) {
-        modal.classList.remove('show');
-        resetPaymentModal();
-    }
-}
-
-function resetPaymentModal() {
-    // Hide all status divs
-    ['paymentLoading', 'paymentError', 'paymentSuccess'].forEach(id => {
-        const element = document.getElementById(id);
-        if (element) element.style.display = 'none';
-    });
-
-    // Show payment button and reset state
-    if (DOMElements.proceedPaymentBtn) {
-        DOMElements.proceedPaymentBtn.style.display = 'block';
-        DOMElements.proceedPaymentBtn.disabled = false;
-        updatePaymentButtonText();
-    }
-    
-    PaymentConfig.isProcessing = false;
-}
-
-function updatePaymentButtonText() {
-    if (DOMElements.proceedPaymentBtn) {
-        const planData = PaymentConfig.plans[PaymentConfig.selectedPlan];
-        DOMElements.proceedPaymentBtn.textContent = `Pay ${planData.currency} ${planData.amount}`;
-    }
-}
-
-async function initiatePayment() {
-    if (PaymentConfig.isProcessing) return;
-
-    const emailInput = document.getElementById('modalUserEmail');
-    const email = emailInput ? emailInput.value.trim() : '';
-
-    if (!email || !isValidEmail(email)) {
-        showMessage('Please enter a valid email address', 'error');
-        return;
-    }
-
-    // Update app state with email
-    AppState.userEmail = email;
-    localStorage.setItem('studypal_user_email', email);
-
-    PaymentConfig.isProcessing = true;
-    showPaymentLoading();
-
-    try {
-        const planData = PaymentConfig.plans[PaymentConfig.selectedPlan];
-        const paymentData = {
-            amount: planData.amount,
-            currency: planData.currency,
-            description: planData.description,
-            user_email: email,
-            plan_type: PaymentConfig.selectedPlan
-        };
-
-        const response = await fetch(API_CONFIG.endpoints.createPayment, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(paymentData)
-        });
-
-        if (!response.ok) {
-            const errorData = await response.json();
-            throw new Error(errorData.error || 'Failed to create payment intent');
-        }
-
-        const data = await response.json();
-        
-        // Process payment with IntaSend
-        await processIntaSendPayment(data, email);
-
-    } catch (error) {
-        console.error('Payment initiation failed:', error);
-        showPaymentError(error.message || 'Payment failed. Please try again.');
-    }
-}
-
-async function processIntaSendPayment(paymentData, email) {
-    try {
-        // Check if IntaSend is loaded
-        if (typeof IntaSend === 'undefined') {
-            throw new Error('Payment processor not loaded. Please refresh the page.');
-        }
-
-        const intasend = new IntaSend(
-            paymentData.publishable_key,
-            paymentData.intasend_config.base_url.includes('sandbox')
-        );
-
-        const paymentConfig = {
-            first_name: email.split('@')[0],
-            last_name: 'User',
-            email: email,
-            phone_number: '+254700000000', // Default phone
-            address: '',
-            city: '',
-            state: '',
-            zipcode: '',
-            country: 'KE',
-            currency: paymentData.intasend_config.currency,
-            amount: paymentData.payment_intent.amount,
-            narrative: paymentData.payment_intent.description,
-            redirect_url: window.location.origin,
-            api_ref: paymentData.payment_intent.reference
-        };
-
-        intasend.on('COMPLETE', function (results) {
-            console.log('Payment completed:', results);
-            handlePaymentSuccess(paymentData.payment_intent);
-        });
-
-        intasend.on('FAILED', function (results) {
-            console.log('Payment failed:', results);
-            handlePaymentFailure(results.failed_reason || 'Payment was cancelled or failed');
-        });
-
-        intasend.on('IN-PROGRESS', function (results) {
-            console.log('Payment in progress:', results);
-            showPaymentProcessing();
-        });
-
-        // Launch payment
-        intasend.collect(paymentConfig);
-        hidePaymentLoading();
-
-    } catch (error) {
-        console.error('IntaSend processing failed:', error);
-        throw error;
-    }
-}
-
-function handlePaymentSuccess(paymentIntent) {
-    // Update user tier
-    AppState.userTier = 'premium';
-    updatePremiumFeatures();
-    updateUIForTier();
-    
-    // Store premium access locally as backup
-    const premiumData = {
-        payment_id: paymentIntent.id,
-        plan: PaymentConfig.selectedPlan,
-        activated_at: new Date().toISOString(),
-        expires_at: PaymentConfig.selectedPlan === 'yearly'
-            ? new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString()
-            : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString()
-    };
-    localStorage.setItem('studypal_premium', JSON.stringify(premiumData));
-
-    // Show success state
-    showPaymentSuccess();
-    
-    // Update UI
-    showPremiumIndicator();
-    removeUpgradeButton();
-
-    // Close modal after 3 seconds
-    setTimeout(() => {
-        closePaymentModal();
-        showMessage('Welcome to StudyPal Premium! Enjoy unlimited features.', 'success');
-        // Refresh saved sets to show newly accessible content
-        loadSavedCardSets();
-    }, 3000);
-}
-
-function handlePaymentFailure(reason) {
-    PaymentConfig.isProcessing = false;
-    showPaymentError(reason || 'Payment failed. Please try again.');
-}
-
-function showPaymentLoading() {
-    if (DOMElements.paymentLoading) DOMElements.paymentLoading.style.display = 'block';
-    if (DOMElements.paymentError) DOMElements.paymentError.style.display = 'none';
-    if (DOMElements.paymentSuccess) DOMElements.paymentSuccess.style.display = 'none';
-    if (DOMElements.proceedPaymentBtn) DOMElements.proceedPaymentBtn.disabled = true;
-}
-
-function hidePaymentLoading() {
-    if (DOMElements.paymentLoading) DOMElements.paymentLoading.style.display = 'none';
-    if (DOMElements.proceedPaymentBtn) DOMElements.proceedPaymentBtn.disabled = false;
-}
-
-function showPaymentProcessing() {
-    if (DOMElements.paymentLoading) {
-        DOMElements.paymentLoading.style.display = 'block';
-        DOMElements.paymentLoading.innerHTML = '<div class="spinner"></div><p>Processing your payment...</p>';
-    }
-}
-
-function showPaymentError(message) {
-    if (DOMElements.paymentLoading) DOMElements.paymentLoading.style.display = 'none';
-    if (DOMElements.paymentError) {
-        DOMElements.paymentError.style.display = 'block';
-        DOMElements.paymentError.innerHTML = `<p style="color: #f44336;">${message}</p>`;
-    }
-    if (DOMElements.proceedPaymentBtn) {
-        DOMElements.proceedPaymentBtn.disabled = false;
-        DOMElements.proceedPaymentBtn.textContent = 'Try Again';
-    }
-    PaymentConfig.isProcessing = false;
-}
-
-function showPaymentSuccess() {
-    if (DOMElements.paymentLoading) DOMElements.paymentLoading.style.display = 'none';
-    if (DOMElements.paymentError) DOMElements.paymentError.style.display = 'none';
-    if (DOMElements.paymentSuccess) {
-        DOMElements.paymentSuccess.style.display = 'block';
-        DOMElements.paymentSuccess.innerHTML = `
-            <div style="text-align: center; color: #4CAF50;">
-                <h3>Payment Successful!</h3>
-                <p>Your premium subscription is now active.</p>
-            </div>
-        `;
-    }
-    if (DOMElements.proceedPaymentBtn) DOMElements.proceedPaymentBtn.style.display = 'none';
-}
-
-function removeUpgradeButton() {
-    const upgradeBtn = document.querySelector('.upgrade-header-btn');
-    if (upgradeBtn) {
-        upgradeBtn.remove();
-    }
-}
-
-// ==========================
-// Flashcard Display with Premium Features
-// ==========================
 function displayFlashcards() {
     if (!DOMElements.flashcardsContainer) return;
 
@@ -873,7 +953,7 @@ function displayFlashcards() {
     const card = AppState.flashcards[AppState.currentIndex];
     const difficultyClass = `difficulty-${card.difficulty}`;
     const premiumBadge = AppState.userTier === 'premium' ? '<span class="premium-badge">⭐</span>' : '';
-    
+
     DOMElements.flashcardsContainer.innerHTML = `
         <div class="flashcard ${card.isFlipped ? 'flipped' : ''}" onclick="flipCard()">
             <div class="flashcard-header">
@@ -911,18 +991,18 @@ function flipCard() {
     displayFlashcards();
 }
 
-function previousCard() { 
-    if (AppState.currentIndex > 0) { 
-        AppState.currentIndex--; 
-        displayFlashcards(); 
-    } 
+function previousCard() {
+    if (AppState.currentIndex > 0) {
+        AppState.currentIndex--;
+        displayFlashcards();
+    }
 }
 
-function nextCard() { 
-    if (AppState.currentIndex < AppState.flashcards.length - 1) { 
-        AppState.currentIndex++; 
-        displayFlashcards(); 
-    } 
+function nextCard() {
+    if (AppState.currentIndex < AppState.flashcards.length - 1) {
+        AppState.currentIndex++;
+        displayFlashcards();
+    }
 }
 
 function shuffleCards() {
@@ -935,87 +1015,58 @@ function shuffleCards() {
     displayFlashcards();
 }
 
-// ==========================
-// Utility Functions
-// ==========================
+function markCard(status) {
+    if (!AppState.flashcards.length) return;
+    const cardId = AppState.flashcards[AppState.currentIndex].id;
+    AppState.cardStatuses.set(cardId, status);
+
+    showMessage(`Card marked as "${status}"`, 'success');
+
+    if (AppState.currentIndex < AppState.flashcards.length - 1) {
+        setTimeout(() => nextCard(), 500);
+    }
+}
+
 function isValidEmail(email) {
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     return emailRegex.test(email);
 }
 
-async function checkPaymentStatus(paymentId) {
-    try {
-        const response = await fetch(`${API_CONFIG.endpoints.paymentStatus}/${paymentId}/status`);
-        if (response.ok) {
-            return await response.json();
-        }
-        return { status: 'unknown' };
-    } catch (error) {
-        console.error('Payment status check failed:', error);
-        return { status: 'unknown' };
-    }
-}
-
-// ==========================
-// Plan Selection
-// ==========================
-function setupPriceCardHandlers() {
-    document.addEventListener('click', (e) => {
-        if (e.target.closest('.price-card')) {
-            const card = e.target.closest('.price-card');
-            const plan = card.dataset.plan;
-
-            // Remove active class from all cards
-            document.querySelectorAll('.price-card').forEach(c => c.classList.remove('active'));
-
-            // Add active class to clicked card
-            card.classList.add('active');
-
-            // Update selected plan
-            PaymentConfig.selectedPlan = plan;
-            updatePaymentButtonText();
-        }
-    });
-}
-
-// ==========================
-// Keyboard Shortcuts
-// ==========================
 function handleKeyboardShortcuts(e) {
     if (['TEXTAREA', 'INPUT'].includes(e.target.tagName)) return;
-    
+
     switch (e.key) {
-        case 'ArrowLeft': 
-            e.preventDefault(); 
-            previousCard(); 
+        case 'ArrowLeft':
+            e.preventDefault();
+            previousCard();
             break;
-        case 'ArrowRight': 
-            e.preventDefault(); 
-            nextCard(); 
+        case 'ArrowRight':
+            e.preventDefault();
+            nextCard();
             break;
-        case ' ': 
-            e.preventDefault(); 
-            flipCard(); 
+        case ' ':
+            e.preventDefault();
+            flipCard();
             break;
-        case 'g': 
-            if (e.ctrlKey || e.metaKey) { 
-                e.preventDefault(); 
-                generateFlashcards(); 
-            } 
+        case 'g':
+            if (e.ctrlKey || e.metaKey) {
+                e.preventDefault();
+                generateFlashcards();
+            }
             break;
-        case 's': 
-            if (e.ctrlKey || e.metaKey) { 
-                e.preventDefault(); 
-                saveFlashcards(); 
-            } 
+        case 's':
+            if (e.ctrlKey || e.metaKey) {
+                e.preventDefault();
+                saveFlashcards();
+            }
             break;
-        case 'r': 
-            if (e.ctrlKey || e.metaKey) { 
-                e.preventDefault(); 
-                shuffleCards(); 
-            } 
+        case 'r':
+            if (e.ctrlKey || e.metaKey) {
+                e.preventDefault();
+                shuffleCards();
+            }
             break;
-        case 'Escape': 
+        case 'Escape':
             if (AppState.sidebarOpen) {
                 toggleSidebar();
             } else if (DOMElements.paymentModal && DOMElements.paymentModal.classList.contains('show')) {
@@ -1025,48 +1076,42 @@ function handleKeyboardShortcuts(e) {
     }
 }
 
-// ==========================
-// Initialization
-// ==========================
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
+    console.log('StudyPal initializing...');
+
     initializeDOMElements();
     initializeUser();
     updateStats();
     updateWordCount();
     setupEventListeners();
     setupPriceCardHandlers();
-    setTimeout(() => {
-        loadSavedCardSets();
-        // Check for premium features after loading
+
+    setTimeout(async () => {
+        await loadSavedCardSets();
         if (AppState.userTier === 'premium') {
             showPremiumIndicator();
+            removeUpgradeButton();
         } else {
             addUpgradeButton();
         }
     }, 100);
+
+    console.log('StudyPal initialized successfully');
 });
 
 function setupEventListeners() {
     if (DOMElements.studyNotes) {
         DOMElements.studyNotes.addEventListener('input', updateWordCount);
     }
-    
-    // User email input handler
-    if (DOMElements.userEmail) {
-        DOMElements.userEmail.addEventListener('change', setUserEmail);
-        DOMElements.userEmail.addEventListener('blur', setUserEmail);
-    }
-    
+
     document.addEventListener('keydown', handleKeyboardShortcuts);
-    
-    // Click outside sidebar to close
+
     document.addEventListener('click', e => {
         if (AppState.sidebarOpen && DOMElements.sidebar && DOMElements.sidebarToggle &&
             !DOMElements.sidebar.contains(e.target) && !DOMElements.sidebarToggle.contains(e.target)) {
             toggleSidebar();
         }
-        
-        // Click outside payment modal to close
+
         const modal = DOMElements.paymentModal;
         if (modal && modal.classList.contains('show') && e.target === modal) {
             closePaymentModal();
@@ -1074,83 +1119,29 @@ function setupEventListeners() {
     });
 }
 
-// ==========================
-// Debug and Testing Functions
-// ==========================
-function createFallbackCards() {
-    const text = DOMElements.studyNotes.value.trim();
-    const sentences = text.split(/[.!?]+/).filter(s => s.trim().length > 10);
-    const fallback = [
-        { question: "What is the main topic discussed?", answer: sentences[0] || "Key concepts from your study material." },
-        { question: "Summarize the key points.", answer: sentences.slice(0, 2).join('. ') || "Summary of main ideas." }
-    ];
-    return fallback.map((c, i) => ({ 
-        ...c, 
-        id: i + 1, 
-        difficulty: 'medium', 
-        type: 'general', 
-        isFlipped: false 
-    }));
-}
-
-// ==========================
-// Global Exports for Testing
-// ==========================
-if (typeof module !== 'undefined' && module.exports) {
-    module.exports = {
-        generateFlashcards,
-        flipCard,
-        nextCard,
-        previousCard,
-        shuffleCards,
-        saveFlashcards,
-        loadSavedSet,
-        deleteSavedSet,
-        toggleSidebar,
-        openPaymentModal,
-        closePaymentModal,
-        checkUserTier,
-        setUserEmail
-    };
-}
-
-// Global window object for console debugging
 window.StudyBuddy = {
     state: AppState,
     config: PaymentConfig,
     api: API_CONFIG,
-    
-    // User functions
-    setEmail: (email) => {
-        if (DOMElements.userEmail) DOMElements.userEmail.value = email;
-        setUserEmail();
-    },
+    setEmail: (email) => setUserEmail(email),
     checkTier: checkUserTier,
-    
-    // Payment functions
     openPayment: openPaymentModal,
     closePayment: closePaymentModal,
-    
-    // Demo functions
-    generateDemo: () => { 
-        if (DOMElements.studyNotes) { 
-            DOMElements.studyNotes.value = "Machine learning is a subset of artificial intelligence that focuses on algorithms and statistical models that enable computers to improve their performance on a specific task through experience, without being explicitly programmed for every scenario."; 
-            updateWordCount(); 
-            generateFlashcards(); 
-        } 
+    generateDemo: () => {
+        if (DOMElements.studyNotes) {
+            DOMElements.studyNotes.value = "Machine learning is a subset of artificial intelligence that focuses on algorithms and statistical models that enable computers to improve their performance on a specific task through experience, without being explicitly programmed for every scenario.";
+            updateWordCount();
+            generateFlashcards();
+        }
     },
     loadDemo: loadSavedCardSets,
-    
-    // Admin functions
-    clearData: () => { 
-        localStorage.removeItem('studyBuddyCardSets'); 
+    clearData: () => {
+        localStorage.removeItem('studyBuddyCardSets');
         localStorage.removeItem('studypal_premium');
         localStorage.removeItem('studypal_user_email');
-        showMessage('All local data cleared!', 'success'); 
+        showMessage('All local data cleared!', 'success');
         location.reload();
     },
-    
-    // Debug functions
     setPremium: () => {
         const premiumData = {
             payment_id: 'debug_123',
@@ -1164,7 +1155,6 @@ window.StudyBuddy = {
         updateUIForTier();
         showMessage('Debug: Premium activated!', 'success');
     },
-    
     removePremium: () => {
         localStorage.removeItem('studypal_premium');
         AppState.userTier = 'free';
@@ -1175,131 +1165,3 @@ window.StudyBuddy = {
         showMessage('Debug: Premium removed!', 'success');
     }
 };
-
-// ==========================
-// Premium Content Validation
-// ==========================
-async function validatePremiumAccess(paymentId) {
-    if (!paymentId || !AppState.userEmail) return false;
-    
-    try {
-        const response = await fetch(API_CONFIG.endpoints.validatePremium, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                payment_id: paymentId,
-                user_email: AppState.userEmail
-            })
-        });
-        
-        if (response.ok) {
-            const data = await response.json();
-            if (data.is_premium) {
-                AppState.userTier = data.tier;
-                updatePremiumFeatures();
-                return true;
-            }
-        }
-    } catch (error) {
-        console.error('Premium validation failed:', error);
-    }
-    
-    return false;
-}
-
-// ==========================
-// Enhanced Error Handling
-// ==========================
-function handleAPIError(error, context = 'Operation') {
-    console.error(`${context} failed:`, error);
-    
-    if (error.message.includes('403') || error.message.includes('Premium subscription required')) {
-        showUpgradePrompt('This feature requires a premium subscription.');
-        return;
-    }
-    
-    if (error.message.includes('401') || error.message.includes('unauthorized')) {
-        showMessage('Please check your email and try again.', 'error');
-        return;
-    }
-    
-    if (error.message.includes('network') || error.message.includes('fetch')) {
-        showMessage('Network error. Please check your connection and try again.', 'error');
-        return;
-    }
-    
-    showMessage(error.message || `${context} failed. Please try again.`, 'error');
-}
-
-// ==========================
-// Local Storage Fallback with Tier Awareness
-// ==========================
-function saveToLocalStorage(dataToSave) {
-    try {
-        const local = JSON.parse(localStorage.getItem('studyBuddyCardSets') || '[]');
-        
-        // Add tier information
-        dataToSave.tier_required = 'free';
-        dataToSave.can_access = true;
-        dataToSave.user_email = AppState.userEmail;
-        
-        local.push(dataToSave);
-        localStorage.setItem('studyBuddyCardSets', JSON.stringify(local));
-        
-        AppState.savedSets++;
-        updateStats();
-        loadSavedCardSets();
-        showMessage(`Saved "${dataToSave.title}" locally`, 'success');
-        
-    } catch (error) {
-        console.error('Local storage save failed:', error);
-        showMessage('Failed to save flashcards', 'error');
-    }
-}
-
-function loadFromLocalStorage() {
-    try {
-        const local = JSON.parse(localStorage.getItem('studyBuddyCardSets') || '[]');
-        return local.map(set => ({
-            ...set,
-            can_access: true,
-            is_locked: false,
-            tier_required: set.tier_required || 'free'
-        }));
-    } catch (error) {
-        console.error('Local storage load failed:', error);
-        return [];
-    }
-}
-
-// ==========================
-// Initialization with Error Recovery
-// ==========================
-async function initializeApp() {
-    try {
-        initializeDOMElements();
-        initializeUser();
-        updateStats();
-        updateWordCount();
-        setupEventListeners();
-        setupPriceCardHandlers();
-        
-        // Load saved sets after user initialization
-        await loadSavedCardSets();
-        
-        // Set up premium features
-        if (AppState.userTier === 'premium') {
-            showPremiumIndicator();
-            removeUpgradeButton();
-        } else {
-            addUpgradeButton();
-        }
-        
-    } catch (error) {
-        console.error('App initialization failed:', error);
-        showMessage('App initialization failed. Some features may not work correctly.', 'error');
-    }
-}
-
-// Replace the original DOMContentLoaded listener
-document.addEventListener('DOMContentLoaded', initializeApp);
